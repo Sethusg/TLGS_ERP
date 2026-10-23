@@ -1,0 +1,7 @@
+{
+  "name": "EduNiv - Advanced School Management System",
+  "description": "Enterprise CBSE school ERP management system featuring student information, staff leave tracking, markcharts, fees, transport tracking, LMS, and transfer certificate management.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+
