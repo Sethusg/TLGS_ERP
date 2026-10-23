@@ -26,12 +26,14 @@ import {
   Mail,
   Shield,
   Layers,
+  BarChart3,
 } from 'lucide-react';
 import { Staff, LeaveRequest, StaffRole, ArchivedStaffDetails } from '../types';
 import { OnboardStaffModal } from './Staff/OnboardStaffModal';
 import { ArchiveStaffModal } from './Staff/ArchiveStaffModal';
 import { StaffDossierModal } from './Staff/StaffDossierModal';
 import { EditStaffModal } from './Staff/EditStaffModal';
+import { StaffAnalyticsDashboard } from './Staff/StaffAnalyticsDashboard';
 
 interface StaffModuleProps {
   staffList: Staff[];
@@ -205,13 +207,14 @@ export const StaffModule: React.FC<StaffModuleProps> = ({
             </button>
             <button
               onClick={() => setActiveTab('report')}
-              className={`px-3 py-1.5 rounded-md transition-colors ${
+              className={`px-3 py-1.5 rounded-md transition-colors flex items-center gap-1.5 ${
                 activeTab === 'report'
                   ? 'bg-white text-gray-900 shadow-2xs font-bold'
                   : 'text-gray-600 hover:text-gray-900'
               }`}
             >
-              Department Analytics
+              <BarChart3 className="w-3.5 h-3.5 text-[#00acc1]" />
+              <span>Workforce Analytics</span>
             </button>
           </div>
 
@@ -739,48 +742,9 @@ export const StaffModule: React.FC<StaffModuleProps> = ({
         </div>
       )}
 
-      {/* VIEW: DEPARTMENT ANALYTICS */}
+      {/* VIEW: DEPARTMENT ANALYTICS & VISUALIZATION DASHBOARD */}
       {activeTab === 'report' && (
-        <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100/80 space-y-6">
-          <div className="flex items-center justify-between border-b border-gray-100 pb-4">
-            <div>
-              <h3 className="text-base font-bold text-gray-900">
-                Staff Departmental Analytics & Roster Breakdown
-              </h3>
-              <p className="text-xs text-gray-500">120 Staff across 8 Academic & Administrative wings</p>
-            </div>
-            <button
-              onClick={() => window.print()}
-              className="px-3.5 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-800 text-xs font-semibold rounded-lg flex items-center gap-1.5"
-            >
-              <Printer className="w-3.5 h-3.5" />
-              <span>Print Ledger</span>
-            </button>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-            <div className="p-4 bg-gray-50 rounded-xl border border-gray-200">
-              <span className="text-xs text-gray-500 font-medium">Teaching Faculty</span>
-              <div className="text-2xl font-black text-gray-900 mt-1 tabular-nums">84</div>
-              <span className="text-[11px] text-gray-500">PGT: 28 · TGT: 36 · PRT: 20</span>
-            </div>
-            <div className="p-4 bg-gray-50 rounded-xl border border-gray-200">
-              <span className="text-xs text-gray-500 font-medium">Non-Teaching & Admin</span>
-              <div className="text-2xl font-black text-gray-900 mt-1 tabular-nums">36</div>
-              <span className="text-[11px] text-gray-500">Office, Lab, Library & Fleet</span>
-            </div>
-            <div className="p-4 bg-gray-50 rounded-xl border border-gray-200">
-              <span className="text-xs text-gray-500 font-medium">Teacher-Student Ratio</span>
-              <div className="text-2xl font-black text-emerald-700 mt-1 tabular-nums">1 : 12.7</div>
-              <span className="text-[11px] text-emerald-600 font-semibold">Best-in-class individual attention</span>
-            </div>
-            <div className="p-4 bg-gray-50 rounded-xl border border-gray-200">
-              <span className="text-xs text-gray-500 font-medium">Archived Alumni Staff</span>
-              <div className="text-2xl font-black text-rose-800 mt-1 tabular-nums">{archivedStaff.length}</div>
-              <span className="text-[11px] text-gray-500">Relieved & certified records</span>
-            </div>
-          </div>
-        </div>
+        <StaffAnalyticsDashboard staffList={staffList} leaveRequests={leaveRequests} />
       )}
 
       {/* Onboard New Staff Modal */}
