@@ -20,6 +20,7 @@ import {
   SchoolSubject,
   TimetableEntry,
   NewsItem,
+  AuditLog,
 } from './types';
 import {
   INITIAL_STUDENTS,
@@ -39,6 +40,7 @@ import {
   INITIAL_SUBJECTS,
   INITIAL_TIMETABLES,
   INITIAL_NEWS,
+  INITIAL_AUDIT_LOGS,
 } from './data/mockData';
 import { AdminManagementHub } from './components/AdminManagementHub';
 
@@ -56,6 +58,7 @@ import { ContactModule } from './components/ContactModule';
 import { LMSAndAcademicsModule } from './components/LMSAndAcademicsModule';
 import { AssetSuppliesModule } from './components/AssetSuppliesModule';
 import { AdminSettingsModule } from './components/AdminSettingsModule';
+import { CommunicationsModule } from './components/CommunicationsModule';
 import { IDCardPrinterModule } from './components/IDCardPrinterModule';
 import { CanteenModule } from './components/CanteenModule';
 import { StudentProfileModal } from './components/Modals/StudentProfileModal';
@@ -155,6 +158,16 @@ export default function App() {
   const [classesList, setClassesList] = useState<SchoolClass[]>(INITIAL_CLASSES);
   const [subjectsList, setSubjectsList] = useState<SchoolSubject[]>(INITIAL_SUBJECTS);
   const [timetablesList, setTimetablesList] = useState<TimetableEntry[]>(INITIAL_TIMETABLES);
+  const [auditLogs, setAuditLogs] = useState<AuditLog[]>(INITIAL_AUDIT_LOGS);
+
+  const handleAddAuditLog = (log: Omit<AuditLog, 'id' | 'timestamp'>) => {
+    const newLog: AuditLog = {
+      ...log,
+      id: `audit-${Date.now()}`,
+      timestamp: new Date().toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+    };
+    setAuditLogs((prev) => [newLog, ...prev]);
+  };
 
   // User Management Handlers
   const handleAddUser = (user: Omit<SystemUser, 'id'>) => {
@@ -660,11 +673,22 @@ export default function App() {
           />
         )}
 
+        {currentSection === 'COMMUNICATIONS' && (
+          <CommunicationsModule
+            initialSubItem={activeSubItem}
+            classes={classesList}
+            students={students}
+            staffList={staffList}
+          />
+        )}
+
         {currentSection === 'SETTINGS' && (
           <AdminSettingsModule
             initialTab={
               activeSubItem === 'settings-backup' || activeSubItem === 'admin-backup'
                 ? 'backup'
+                : activeSubItem === 'admin-audit'
+                ? 'audit'
                 : 'settings'
             }
             systemState={{
@@ -679,6 +703,8 @@ export default function App() {
               libraryBooks,
               assets,
             }}
+            auditLogs={auditLogs}
+            onAddAuditLog={handleAddAuditLog}
             onRestoreState={handleRestoreState}
             onResetToDemoData={handleResetToDemoData}
           />

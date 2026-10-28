@@ -15,7 +15,8 @@ export type NavSection =
   | 'ASSET'
   | 'SUPPLIES'
   | 'ID_CARDS'
-  | 'CANTEEN';
+  | 'CANTEEN'
+  | 'COMMUNICATIONS';
 
 export type SubMenuAction = {
   label: string;
@@ -312,6 +313,37 @@ export interface CalendarEvent {
   desc: string;
   badge: string;
   color: string;
+}
+
+export interface AuditLog {
+  id: string;
+  userID: string;
+  userName: string;
+  timestamp: string;
+  actionType: 'REFUND' | 'VOID' | 'STOCK_ADJUSTMENT' | 'LOGIN' | 'SETTINGS_CHANGE' | 'FEE_PAYMENT' | 'TC_PRINT' | 'OTHER';
+  referenceID: string;
+  remarks: string;
+  ipAddress?: string;
+}
+
+export interface CommunicationTemplate {
+  id: string;
+  title: string;
+  category: 'Fee Reminder' | 'Exam Notice' | 'General Circular' | 'PTM Invite' | 'Emergency Alert';
+  subject: string;
+  body: string;
+}
+
+export interface CommunicationMessage {
+  id: string;
+  timestamp: string;
+  senderName: string;
+  channel: 'Email' | 'SMS' | 'Internal Notification' | 'WhatsApp';
+  targetGroup: string;
+  subject: string;
+  body: string;
+  recipientCount: number;
+  status: 'Delivered' | 'Queued' | 'Failed';
 }
 
 

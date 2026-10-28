@@ -51,7 +51,19 @@ export const OnboardStaffModal: React.FC<OnboardStaffModalProps> = ({
 
   // Classes tags
   const [selectedClasses, setSelectedClasses] = useState<string[]>(['Class 9-A', 'Class 10-B']);
-  const [newClassInput, setNewClassInput] = useState('');
+  const [gradeChoice, setGradeChoice] = useState('Class 10');
+  const [sectionChoice, setSectionChoice] = useState('A');
+
+  const handleAddClass = () => {
+    const clsName = `${gradeChoice}-${sectionChoice}`;
+    if (!selectedClasses.includes(clsName)) {
+      setSelectedClasses([...selectedClasses, clsName]);
+    }
+  };
+
+  const handleRemoveClass = (cls: string) => {
+    setSelectedClasses(selectedClasses.filter((c) => c !== cls));
+  };
 
   // Responsibilities
   const [responsibilities, setResponsibilities] = useState<string[]>([
@@ -59,17 +71,6 @@ export const OnboardStaffModal: React.FC<OnboardStaffModalProps> = ({
     'Mathematics Club Faculty Lead',
   ]);
   const [newRespInput, setNewRespInput] = useState('');
-
-  const handleAddClass = () => {
-    if (newClassInput.trim() && !selectedClasses.includes(newClassInput.trim())) {
-      setSelectedClasses([...selectedClasses, newClassInput.trim()]);
-      setNewClassInput('');
-    }
-  };
-
-  const handleRemoveClass = (cls: string) => {
-    setSelectedClasses(selectedClasses.filter((c) => c !== cls));
-  };
 
   const handleAddResp = () => {
     if (newRespInput.trim() && !responsibilities.includes(newRespInput.trim())) {
@@ -407,24 +408,29 @@ export const OnboardStaffModal: React.FC<OnboardStaffModalProps> = ({
                     ))}
                   </div>
 
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value={newClassInput}
-                      onChange={(e) => setNewClassInput(e.target.value)}
-                      placeholder="e.g. Class 11-A, Class 12-B"
-                      className="flex-1 px-3 py-1.5 border border-gray-300 rounded-lg focus:outline-none text-xs"
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          e.preventDefault();
-                          handleAddClass();
-                        }
-                      }}
-                    />
+                  <div className="flex gap-2 items-center">
+                    <select
+                      value={gradeChoice}
+                      onChange={(e) => setGradeChoice(e.target.value)}
+                      className="px-2.5 py-1.5 border border-gray-300 rounded-lg focus:outline-none bg-white text-xs font-semibold"
+                    >
+                      {['Nursery', 'LKG', 'UKG', 'Class 1', 'Class 2', 'Class 3', 'Class 4', 'Class 5', 'Class 6', 'Class 7', 'Class 8', 'Class 9', 'Class 10', 'Class 11', 'Class 12'].map(c => (
+                        <option key={c} value={c}>{c}</option>
+                      ))}
+                    </select>
+                    <select
+                      value={sectionChoice}
+                      onChange={(e) => setSectionChoice(e.target.value)}
+                      className="px-2.5 py-1.5 border border-gray-300 rounded-lg focus:outline-none bg-white text-xs font-semibold"
+                    >
+                      {['A', 'B', 'C', 'D', 'E'].map(s => (
+                        <option key={s} value={s}>Sec {s}</option>
+                      ))}
+                    </select>
                     <button
                       type="button"
                       onClick={handleAddClass}
-                      className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 font-semibold rounded-lg text-gray-700"
+                      className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-xs"
                     >
                       + Add Class
                     </button>

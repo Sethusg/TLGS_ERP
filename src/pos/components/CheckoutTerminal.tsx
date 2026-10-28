@@ -312,12 +312,17 @@ export const CheckoutTerminal: React.FC<CheckoutTerminalProps> = ({
     if (subtotal === 0) return 0;
     const ratio = taxableAmount / subtotal;
     return activeCart.reduce((tax, item) => {
-      const itemBase = item.unit_price * item.quantity * ratio;
-      return tax + (itemBase * item.tax_rate) / 100;
+      const itemGross = item.unit_price * item.quantity * ratio;
+      if (settings.tax_inclusive) {
+        return tax + itemGross * (item.tax_rate / (100 + item.tax_rate));
+      } else {
+        return tax + (itemGross * item.tax_rate) / 100;
+      }
     }, 0);
-  }, [activeCart, subtotal, taxableAmount]);
+  }, [activeCart, subtotal, taxableAmount, settings.tax_inclusive]);
 
-  const grandTotal = Math.max(0, taxableAmount + totalTax);
+  const netSubtotal = settings.tax_inclusive ? Math.max(0, taxableAmount - totalTax) : subtotal;
+  const grandTotal = settings.tax_inclusive ? taxableAmount : Math.max(0, taxableAmount + totalTax);
 
   const tierMultiplier = useMemo(() => {
     if (!currentCustomer) return 1.0;
@@ -361,8 +366,10 @@ export const CheckoutTerminal: React.FC<CheckoutTerminalProps> = ({
       const itemRatio = subtotal > 0 ? (item.unit_price * item.quantity) / subtotal : 0;
       const itemDiscount = totalDiscount * itemRatio;
       const itemTaxable = item.unit_price * item.quantity - itemDiscount;
-      const itemTax = (itemTaxable * item.tax_rate) / 100;
-      const lineTotal = itemTaxable + itemTax;
+      const itemTax = settings.tax_inclusive
+        ? itemTaxable * (item.tax_rate / (100 + item.tax_rate))
+        : (itemTaxable * item.tax_rate) / 100;
+      const lineTotal = settings.tax_inclusive ? itemTaxable : itemTaxable + itemTax;
 
       return {
         id: `si-${Date.now()}-${idx}`,
@@ -399,7 +406,7 @@ export const CheckoutTerminal: React.FC<CheckoutTerminalProps> = ({
       wallet_previous_balance: isWallet ? prevBalance : undefined,
       wallet_remaining_balance: isWallet ? remainingBalance : undefined,
       meal_session: mealSession,
-      subtotal: Math.round(subtotal * 100) / 100,
+      subtotal: Math.round(netSubtotal * 100) / 100,
       discount_amount: Math.round(totalDiscount * 100) / 100,
       tax_amount: Math.round(totalTax * 100) / 100,
       total_amount: Math.round(grandTotal * 100) / 100,
@@ -972,8 +979,8 @@ export const CheckoutTerminal: React.FC<CheckoutTerminalProps> = ({
         {/* Totals Breakdown */}
         <div className="p-4 border-t border-neutral-800 bg-neutral-950 space-y-2 text-xs">
           <div className="flex justify-between text-neutral-400">
-            <span>Subtotal</span>
-            <span className="font-mono">{formatCurrency(subtotal, settings.currency_symbol)}</span>
+            <span>Subtotal {settings.tax_inclusive ? '(Net)' : ''}</span>
+            <span className="font-mono">{formatCurrency(netSubtotal, settings.currency_symbol)}</span>
           </div>
 
           {totalDiscount > 0 && (
@@ -987,7 +994,7 @@ export const CheckoutTerminal: React.FC<CheckoutTerminalProps> = ({
           )}
 
           <div className="flex justify-between text-neutral-400">
-            <span>Taxes & GST</span>
+            <span>Taxes & GST {settings.tax_inclusive ? '(Included)' : ''}</span>
             <span className="font-mono">{formatCurrency(totalTax, settings.currency_symbol)}</span>
           </div>
 

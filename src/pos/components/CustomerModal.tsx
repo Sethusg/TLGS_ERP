@@ -18,7 +18,11 @@ export const CustomerModal: React.FC<CustomerModalProps> = ({
     customer?.account_type || 'student'
   );
   const [studentId, setStudentId] = useState(customer?.student_id || '');
-  const [gradeSection, setGradeSection] = useState(customer?.grade_section || '');
+  const initialGrade = customer?.grade_section ? customer.grade_section.split(/[-–]/)[0]?.trim() || 'Class 10' : 'Class 10';
+  const initialSection = customer?.grade_section ? customer.grade_section.split(/[-–]/)[1]?.trim() || 'A' : 'A';
+  const [selectedClass, setSelectedClass] = useState(initialGrade);
+  const [selectedSection, setSelectedSection] = useState(initialSection);
+  const [gradeSection, setGradeSection] = useState(customer?.grade_section || `${initialGrade} - ${initialSection}`);
   const [parentName, setParentName] = useState(customer?.parent_name || '');
   const [walletBalance, setWalletBalance] = useState<number>(customer?.wallet_balance ?? 300);
   const [allergens, setAllergens] = useState(customer?.allergens || 'None');
@@ -303,15 +307,39 @@ export const CustomerModal: React.FC<CustomerModalProps> = ({
                 className="w-full bg-neutral-950 border border-neutral-800 rounded-lg px-3 py-2 text-neutral-100 font-mono focus:outline-none focus:border-amber-500"
               />
             </div>
-            <div>
-              <label className="block text-neutral-300 font-medium mb-1">Class / Grade & Section</label>
-              <input
-                type="text"
-                value={gradeSection}
-                onChange={(e) => setGradeSection(e.target.value)}
-                placeholder="e.g. Grade 10-A"
-                className="w-full bg-neutral-950 border border-neutral-800 rounded-lg px-3 py-2 text-neutral-100 focus:outline-none focus:border-amber-500"
-              />
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="block text-neutral-300 font-medium mb-1">Class / Grade</label>
+                <select
+                  value={selectedClass}
+                  onChange={(e) => {
+                    const cls = e.target.value;
+                    setSelectedClass(cls);
+                    setGradeSection(`${cls} - ${selectedSection}`);
+                  }}
+                  className="w-full bg-neutral-950 border border-neutral-800 rounded-lg px-3 py-2 text-neutral-100 focus:outline-none focus:border-amber-500"
+                >
+                  {['Nursery', 'LKG', 'UKG', 'Class 1', 'Class 2', 'Class 3', 'Class 4', 'Class 5', 'Class 6', 'Class 7', 'Class 8', 'Class 9', 'Class 10', 'Class 11', 'Class 12'].map(c => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-neutral-300 font-medium mb-1">Section</label>
+                <select
+                  value={selectedSection}
+                  onChange={(e) => {
+                    const sec = e.target.value;
+                    setSelectedSection(sec);
+                    setGradeSection(`${selectedClass} - ${sec}`);
+                  }}
+                  className="w-full bg-neutral-950 border border-neutral-800 rounded-lg px-3 py-2 text-neutral-100 focus:outline-none focus:border-amber-500"
+                >
+                  {['A', 'B', 'C', 'D', 'E'].map(s => (
+                    <option key={s} value={s}>Section {s}</option>
+                  ))}
+                </select>
+              </div>
             </div>
           </div>
 

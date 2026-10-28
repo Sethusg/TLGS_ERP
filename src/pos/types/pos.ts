@@ -206,6 +206,7 @@ export interface StoreSettings {
   thermal_printer_width?: '80mm' | '58mm';
   auto_print_receipt?: boolean;
   print_kitchen_token?: boolean;
+  tax_inclusive?: boolean;
   address: string;
   phone: string;
   email: string;

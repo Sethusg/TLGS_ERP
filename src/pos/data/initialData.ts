@@ -63,6 +63,7 @@ export const INITIAL_STORE_SETTINGS: StoreSettings = {
   thermal_printer_width: '80mm',
   auto_print_receipt: true,
   print_kitchen_token: true,
+  tax_inclusive: false,
   address: 'Campus West Wing, Student Activity Center, Ground Floor',
   phone: '+91 98765 43210',
   email: 'canteen@tlgs.edu.in',

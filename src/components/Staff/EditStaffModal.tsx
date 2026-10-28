@@ -38,10 +38,6 @@ export const EditStaffModal: React.FC<EditStaffModalProps> = ({
   const [responsibilities, setResponsibilities] = useState<string[]>(staff.responsibilities || []);
   const [newRespInput, setNewRespInput] = useState('');
 
-  // Classes
-  const [assignedClasses, setAssignedClasses] = useState<string[]>(staff.assignedClasses || []);
-  const [newClassInput, setNewClassInput] = useState('');
-
   const handleAddResp = () => {
     if (newRespInput.trim() && !responsibilities.includes(newRespInput.trim())) {
       setResponsibilities([...responsibilities, newRespInput.trim()]);
@@ -53,10 +49,15 @@ export const EditStaffModal: React.FC<EditStaffModalProps> = ({
     setResponsibilities(responsibilities.filter((_, i) => i !== idx));
   };
 
+  // Classes
+  const [assignedClasses, setAssignedClasses] = useState<string[]>(staff.assignedClasses || []);
+  const [gradeChoice, setGradeChoice] = useState('Class 10');
+  const [sectionChoice, setSectionChoice] = useState('A');
+
   const handleAddClass = () => {
-    if (newClassInput.trim() && !assignedClasses.includes(newClassInput.trim())) {
-      setAssignedClasses([...assignedClasses, newClassInput.trim()]);
-      setNewClassInput('');
+    const clsName = `${gradeChoice}-${sectionChoice}`;
+    if (!assignedClasses.includes(clsName)) {
+      setAssignedClasses([...assignedClasses, clsName]);
     }
   };
 
@@ -205,24 +206,29 @@ export const EditStaffModal: React.FC<EditStaffModalProps> = ({
                     </span>
                   ))}
                 </div>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={newClassInput}
-                    onChange={(e) => setNewClassInput(e.target.value)}
-                    placeholder="e.g. Class 10-C"
-                    className="flex-1 px-3 py-1.5 border border-gray-300 rounded-lg focus:outline-none bg-white text-xs"
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        handleAddClass();
-                      }
-                    }}
-                  />
+                <div className="flex gap-2 items-center">
+                  <select
+                    value={gradeChoice}
+                    onChange={(e) => setGradeChoice(e.target.value)}
+                    className="px-2.5 py-1.5 border border-gray-300 rounded-lg focus:outline-none bg-white text-xs font-semibold"
+                  >
+                    {['Nursery', 'LKG', 'UKG', 'Class 1', 'Class 2', 'Class 3', 'Class 4', 'Class 5', 'Class 6', 'Class 7', 'Class 8', 'Class 9', 'Class 10', 'Class 11', 'Class 12'].map(c => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
+                  </select>
+                  <select
+                    value={sectionChoice}
+                    onChange={(e) => setSectionChoice(e.target.value)}
+                    className="px-2.5 py-1.5 border border-gray-300 rounded-lg focus:outline-none bg-white text-xs font-semibold"
+                  >
+                    {['A', 'B', 'C', 'D', 'E'].map(s => (
+                      <option key={s} value={s}>Sec {s}</option>
+                    ))}
+                  </select>
                   <button
                     type="button"
                     onClick={handleAddClass}
-                    className="px-3 py-1.5 bg-gray-200 hover:bg-gray-300 font-semibold rounded-lg"
+                    className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg text-xs"
                   >
                     + Add
                   </button>

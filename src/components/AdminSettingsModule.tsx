@@ -33,6 +33,7 @@ import {
   FeeReceipt,
   TransferCertificate,
   SchoolAsset,
+  AuditLog,
 } from '../types';
 import { SchoolDataPdfModal } from './Modals/SchoolDataPdfModal';
 import { downloadSchoolDataPDF } from '../utils/exportSchoolDataPdf';
@@ -78,6 +79,8 @@ interface AdminSettingsProps {
     libraryBooks: any[];
     assets: SchoolAsset[];
   };
+  auditLogs?: AuditLog[];
+  onAddAuditLog?: (log: Omit<AuditLog, 'id' | 'timestamp'>) => void;
   onRestoreState?: (importedData: FullSystemBackupData['data']) => boolean;
   onResetToDemoData?: () => void;
 }
@@ -85,10 +88,14 @@ interface AdminSettingsProps {
 export const AdminSettingsModule: React.FC<AdminSettingsProps> = ({
   initialTab = 'roles',
   systemState,
+  auditLogs = [],
+  onAddAuditLog,
   onRestoreState,
   onResetToDemoData,
 }) => {
   const [activeTab, setActiveTab] = useState<'roles' | 'settings' | 'audit' | 'backup'>(initialTab);
+  const [auditSearch, setAuditSearch] = useState('');
+  const [auditTypeFilter, setAuditTypeFilter] = useState('ALL');
 
   // Institution settings state
   const [schoolName, setSchoolName] = useState('THE LEADERS ACADEMY(CBSE)');
@@ -411,25 +418,138 @@ export const AdminSettingsModule: React.FC<AdminSettingsProps> = ({
 
       {/* VIEW: AUDIT LOG */}
       {activeTab === 'audit' && (
-        <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100/80 space-y-4">
-          <h3 className="text-base font-bold text-gray-900">Security & Operational Audit Trail</h3>
-          <div className="space-y-2 text-xs">
-            {[
-              { event: 'User Login: admin_sethu (Dr. Sethu Ramanathan)', time: '24 Oct 2026, 08:15 AM', ip: '103.21.144.12', status: 'Authorized Session' },
-              { event: 'Fee Receipt REC-2026-4891 issued for Aarav Sharma (₹46,000)', time: '23 Oct 2026, 04:12 PM', ip: '103.21.144.18', status: 'Payment Logged' },
-              { event: 'CBSE Transfer Certificate TLGS/TC/2026/043 printed', time: '23 Oct 2026, 11:30 AM', ip: '103.21.144.12', status: 'Certificate Emitted' },
-              { event: 'Staff Leave Request lev-004 approved by Principal', time: '22 Oct 2026, 02:45 PM', ip: '103.21.144.12', status: 'Leave Workflow' },
-            ].map((a, i) => (
-              <div key={i} className="p-3 bg-gray-50 rounded-lg border border-gray-200 flex items-center justify-between">
-                <div>
-                  <span className="font-semibold text-gray-900">{a.event}</span>
-                  <div className="text-[10px] text-gray-400 font-mono mt-0.5">{a.time} · Host: {a.ip}</div>
-                </div>
-                <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded">
-                  {a.status}
-                </span>
-              </div>
-            ))}
+        <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100/80 space-y-6">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-gray-100 pb-4">
+            <div>
+              <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
+                <Shield className="w-5 h-5 text-indigo-600" />
+                <span>Security & Operational Audit Trail Database</span>
+              </h3>
+              <p className="text-xs text-gray-500 mt-0.5">
+                Comprehensive audit logs tracking sensitive operations (refunds, voids, stock adjustments, logins, and settings changes) with UserID, Timestamp, ReferenceID, and Remarks.
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => {
+                  if (onAddAuditLog) {
+                    onAddAuditLog({
+                      userID: 'usr_admin_manual',
+                      userName: 'Administrator (Manual Test)',
+                      actionType: 'SETTINGS_CHANGE',
+                      referenceID: `REF-${Math.floor(Math.random() * 90000 + 10000)}`,
+                      remarks: 'Manual system security verification check performed.',
+                      ipAddress: '103.21.144.10'
+                    });
+                  }
+                }}
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg shadow-2xs flex items-center gap-1.5 cursor-pointer"
+              >
+                <Sparkles className="w-4 h-4" />
+                <span>Simulate Audit Event</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Search & Filter Bar */}
+          <div className="flex flex-col sm:flex-row items-center gap-3">
+            <div className="relative flex-1 w-full">
+              <input
+                type="text"
+                placeholder="Search audit logs by User, Reference ID, or Remarks..."
+                value={auditSearch}
+                onChange={(e) => setAuditSearch(e.target.value)}
+                className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+              />
+              <Eye className="w-4 h-4 text-gray-400 absolute left-3 top-2.5" />
+            </div>
+            <div className="flex items-center gap-2 w-full sm:w-auto overflow-x-auto pb-1 sm:pb-0">
+              {['ALL', 'REFUND', 'VOID', 'STOCK_ADJUSTMENT', 'LOGIN', 'SETTINGS_CHANGE'].map((type) => (
+                <button
+                  key={type}
+                  onClick={() => setAuditTypeFilter(type)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap cursor-pointer transition-colors ${
+                    auditTypeFilter === type
+                      ? 'bg-indigo-600 text-white shadow-2xs'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+                >
+                  {type.replace('_', ' ')}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Audit Logs Table */}
+          <div className="border border-gray-200 rounded-xl overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-gray-50 border-b border-gray-200 font-bold text-gray-700 uppercase tracking-wider">
+                  <tr>
+                    <th className="p-3">Timestamp</th>
+                    <th className="p-3">User (ID & Name)</th>
+                    <th className="p-3">Action Type</th>
+                    <th className="p-3">Reference ID</th>
+                    <th className="p-3">Remarks / Details</th>
+                    <th className="p-3 text-right">IP Host</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {auditLogs
+                    .filter((log) => {
+                      const matchesType = auditTypeFilter === 'ALL' || log.actionType === auditTypeFilter;
+                      const matchesSearch =
+                        !auditSearch ||
+                        log.userName.toLowerCase().includes(auditSearch.toLowerCase()) ||
+                        log.userID.toLowerCase().includes(auditSearch.toLowerCase()) ||
+                        log.referenceID.toLowerCase().includes(auditSearch.toLowerCase()) ||
+                        log.remarks.toLowerCase().includes(auditSearch.toLowerCase());
+                      return matchesType && matchesSearch;
+                    })
+                    .map((log) => {
+                      const badgeColor =
+                        log.actionType === 'REFUND'
+                          ? 'bg-amber-50 text-amber-800 border-amber-200'
+                          : log.actionType === 'VOID'
+                          ? 'bg-rose-50 text-rose-800 border-rose-200'
+                          : log.actionType === 'STOCK_ADJUSTMENT'
+                          ? 'bg-purple-50 text-purple-800 border-purple-200'
+                          : log.actionType === 'LOGIN'
+                          ? 'bg-blue-50 text-blue-800 border-blue-200'
+                          : 'bg-emerald-50 text-emerald-800 border-emerald-200';
+
+                      return (
+                        <tr key={log.id} className="hover:bg-gray-50/80 transition-colors">
+                          <td className="p-3 font-mono text-gray-500 whitespace-nowrap">{log.timestamp}</td>
+                          <td className="p-3">
+                            <span className="font-bold text-gray-900 block">{log.userName}</span>
+                            <span className="text-[10px] font-mono text-gray-400">{log.userID}</span>
+                          </td>
+                          <td className="p-3">
+                            <span className={`px-2 py-1 rounded font-bold text-[10px] border ${badgeColor}`}>
+                              {log.actionType}
+                            </span>
+                          </td>
+                          <td className="p-3 font-mono font-semibold text-gray-800">{log.referenceID}</td>
+                          <td className="p-3 text-gray-700 max-w-xs truncate" title={log.remarks}>
+                            {log.remarks}
+                          </td>
+                          <td className="p-3 text-right font-mono text-[11px] text-gray-500 whitespace-nowrap">
+                            {log.ipAddress || '103.21.144.12'}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  {auditLogs.length === 0 && (
+                    <tr>
+                      <td colSpan={6} className="p-8 text-center text-gray-400">
+                        No audit logs recorded matching the current filter criteria.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       )}

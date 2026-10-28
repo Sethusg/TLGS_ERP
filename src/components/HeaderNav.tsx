@@ -178,6 +178,16 @@ export const MENU_ITEMS: MenuItemDef[] = [
     ],
   },
   {
+    id: 'COMMUNICATIONS',
+    label: 'COMMUNICATIONS',
+    icon: Mail,
+    subItems: [
+      { label: 'Bulk Broadcast', actionId: 'comm-broadcast' },
+      { label: 'Templates', actionId: 'comm-templates' },
+      { label: 'History Log', actionId: 'comm-history' },
+    ],
+  },
+  {
     id: 'SETTINGS',
     label: 'SETTINGS',
     icon: Settings,

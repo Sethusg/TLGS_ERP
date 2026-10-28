@@ -16,6 +16,7 @@ import {
   SchoolSubject,
   TimetableEntry,
   NewsItem,
+  AuditLog,
 } from '../types';
 
 
@@ -1180,6 +1181,59 @@ export const INITIAL_NEWS: NewsItem[] = [
     category: 'Cultural Fest',
     summary: 'Emerald House clinched the championship trophy after a riveting debate on artificial intelligence ethics.',
   },
+];
+
+export const INITIAL_AUDIT_LOGS: AuditLog[] = [
+  {
+    id: 'audit-1',
+    userID: 'usr_01',
+    userName: 'Dr. Sethu Ramanathan (Principal)',
+    timestamp: '24 Oct 2026, 08:15 AM',
+    actionType: 'LOGIN',
+    referenceID: 'AUTH-SESSION-99',
+    remarks: 'Authorized principal login from campus network',
+    ipAddress: '103.21.144.12'
+  },
+  {
+    id: 'audit-2',
+    userID: 'usr_cashier2',
+    userName: 'R Rajesh (POS Cashier)',
+    timestamp: '24 Oct 2026, 11:42 AM',
+    actionType: 'REFUND',
+    referenceID: 'TXN-CANTEEN-8841',
+    remarks: 'Refunded 1x Cold Coffee & Sandwich due to customer cancellation',
+    ipAddress: '103.21.144.19'
+  },
+  {
+    id: 'audit-3',
+    userID: 'usr_inv1',
+    userName: 'Karthik Nair (Inventory Mgr)',
+    timestamp: '23 Oct 2026, 03:20 PM',
+    actionType: 'STOCK_ADJUSTMENT',
+    referenceID: 'SKU-SNACK-104',
+    remarks: 'Physical audit stock adjustment: -5 units damaged cartons written off',
+    ipAddress: '103.21.144.22'
+  },
+  {
+    id: 'audit-4',
+    userID: 'usr_cashier1',
+    userName: 'Priya Sharma (POS Cashier)',
+    timestamp: '23 Oct 2026, 01:10 PM',
+    actionType: 'VOID',
+    referenceID: 'TXN-CANTEEN-8812',
+    remarks: 'Voided duplicate bill entry generated during terminal glitch retry',
+    ipAddress: '103.21.144.15'
+  },
+  {
+    id: 'audit-5',
+    userID: 'usr_admin',
+    userName: 'ERP Administrator',
+    timestamp: '22 Oct 2026, 04:05 PM',
+    actionType: 'SETTINGS_CHANGE',
+    referenceID: 'CFG-ACAD-2026',
+    remarks: 'Updated academic year term dates and fee penalty parameters',
+    ipAddress: '103.21.144.10'
+  }
 ];
 
 

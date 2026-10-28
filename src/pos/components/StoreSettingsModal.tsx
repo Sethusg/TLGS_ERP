@@ -163,6 +163,16 @@ export const StoreSettingsModal: React.FC<StoreSettingsModalProps> = ({
                 />
                 <span className="text-[11px]">Print Food Pickup Token (KOT) slip</span>
               </label>
+
+              <label className="flex items-center gap-2 cursor-pointer text-neutral-300 col-span-2 pt-1.5 border-t border-neutral-800">
+                <input
+                  type="checkbox"
+                  checked={formData.tax_inclusive ?? false}
+                  onChange={(e) => setFormData({ ...formData, tax_inclusive: e.target.checked })}
+                  className="w-4 h-4 rounded text-amber-500 focus:ring-amber-400 bg-neutral-900 border-neutral-700"
+                />
+                <span className="text-[11px] font-semibold text-amber-400">Prices already include tax (Tax-Inclusive / GST Inclusive Pricing)</span>
+              </label>
             </div>
           </div>
 
