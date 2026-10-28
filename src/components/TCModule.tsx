@@ -9,6 +9,7 @@ import {
   FileText,
 } from 'lucide-react';
 import { TransferCertificate, Student } from '../types';
+import { printElement } from '../utils/printDocument';
 
 interface TCModuleProps {
   tcRecords: TransferCertificate[];
@@ -93,27 +94,27 @@ export const TCModule: React.FC<TCModuleProps> = ({
           </p>
         </div>
 
-        <div className="flex items-center gap-1.5 p-1 bg-gray-100 rounded-lg text-xs font-medium">
+        <div className="flex items-center gap-1.5 p-1 bg-gray-100/90 rounded-lg text-xs font-medium border border-gray-200/60">
           <button
             onClick={() => setActiveTab('manage')}
-            className={`px-3 py-1.5 rounded-md transition-colors ${
-              activeTab === 'manage' ? 'bg-white text-gray-900 shadow-2xs font-bold' : 'text-gray-600 hover:text-gray-900'
+            className={`px-3 py-1.5 rounded-md transition-all ${
+              activeTab === 'manage' ? 'bg-[#d81b60] text-white shadow-xs font-bold' : 'text-gray-600 hover:text-gray-900'
             }`}
           >
             Manage TC ({tcRecords.length})
           </button>
           <button
             onClick={() => setActiveTab('create')}
-            className={`px-3 py-1.5 rounded-md transition-colors ${
-              activeTab === 'create' ? 'bg-white text-gray-900 shadow-2xs font-bold' : 'text-gray-600 hover:text-gray-900'
+            className={`px-3 py-1.5 rounded-md transition-all ${
+              activeTab === 'create' ? 'bg-[#d81b60] text-white shadow-xs font-bold' : 'text-gray-600 hover:text-gray-900'
             }`}
           >
             Issue New TC
           </button>
           <button
             onClick={() => setActiveTab('print')}
-            className={`px-3 py-1.5 rounded-md transition-colors ${
-              activeTab === 'print' ? 'bg-white text-gray-900 shadow-2xs font-bold' : 'text-gray-600 hover:text-gray-900'
+            className={`px-3 py-1.5 rounded-md transition-all ${
+              activeTab === 'print' ? 'bg-[#d81b60] text-white shadow-xs font-bold' : 'text-gray-600 hover:text-gray-900'
             }`}
           >
             Print Preview
@@ -123,7 +124,44 @@ export const TCModule: React.FC<TCModuleProps> = ({
 
       {/* VIEW: MANAGE TC */}
       {activeTab === 'manage' && (
-        <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100/80 space-y-4">
+        <>
+          {/* Multicolor TC KPI Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="bg-white rounded-2xl p-4 shadow-sm border border-pink-100 flex items-center justify-between">
+              <div>
+                <span className="text-[11px] font-bold uppercase tracking-wider text-pink-700">Total TCs Issued</span>
+                <div className="text-2xl font-black text-gray-900 mt-0.5 tabular-nums">{tcRecords.length} Documents</div>
+                <span className="text-[10px] text-pink-600 font-semibold">Academic Year 2026-27</span>
+              </div>
+              <div className="w-11 h-11 rounded-xl bg-[#fce4ec] flex items-center justify-center text-[#d81b60] shrink-0">
+                <FileCheck2 className="w-5 h-5" />
+              </div>
+            </div>
+
+            <div className="bg-white rounded-2xl p-4 shadow-sm border border-emerald-100 flex items-center justify-between">
+              <div>
+                <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-700">CBSE Compliance</span>
+                <div className="text-2xl font-black text-gray-900 mt-0.5 tabular-nums">100%</div>
+                <span className="text-[10px] text-emerald-600 font-semibold">Affiliation #1930812 Verified</span>
+              </div>
+              <div className="w-11 h-11 rounded-xl bg-[#e8f5e9] flex items-center justify-center text-[#43a047] shrink-0">
+                <FileText className="w-5 h-5" />
+              </div>
+            </div>
+
+            <div className="bg-white rounded-2xl p-4 shadow-sm border border-cyan-100 flex items-center justify-between">
+              <div>
+                <span className="text-[11px] font-bold uppercase tracking-wider text-cyan-700">Institutional Clearance</span>
+                <div className="text-2xl font-black text-gray-900 mt-0.5 tabular-nums">Cleared</div>
+                <span className="text-[10px] text-cyan-600 font-semibold">Library, Fee & Lab Audited</span>
+              </div>
+              <div className="w-11 h-11 rounded-xl bg-[#e0f7fa] flex items-center justify-center text-[#00acc1] shrink-0">
+                <Printer className="w-5 h-5" />
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100/80 space-y-4">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
             <div className="relative w-full sm:w-72">
               <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -183,7 +221,8 @@ export const TCModule: React.FC<TCModuleProps> = ({
             </table>
           </div>
         </div>
-      )}
+      </>
+    )}
 
       {/* VIEW: CREATE TC FORM */}
       {activeTab === 'create' && (
@@ -304,8 +343,14 @@ export const TCModule: React.FC<TCModuleProps> = ({
               <p className="text-xs text-gray-500">Certificate Number: {selectedTC.tcNo}</p>
             </div>
             <button
-              onClick={() => window.print()}
-              className="px-4 py-2 bg-[#e91e63] text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 hover:bg-[#d81b60] shadow-2xs"
+              type="button"
+              onClick={() =>
+                printElement('tc-official-document', {
+                  title: `TC_${selectedTC.tcNo}_${selectedTC.studentName.replace(/\s+/g, '_')}_THE_LEADERS_ACADEMY`,
+                })
+              }
+              className="px-4 py-2 bg-[#e91e63] text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 hover:bg-[#d81b60] shadow-2xs cursor-pointer transition-colors"
+              title="Print official CBSE Transfer Certificate"
             >
               <Printer className="w-3.5 h-3.5" />
               <span>Print Official TC</span>
@@ -313,11 +358,11 @@ export const TCModule: React.FC<TCModuleProps> = ({
           </div>
 
           {/* Official Document Sheet */}
-          <div className="border-4 border-double border-gray-800 p-8 max-w-3xl mx-auto bg-white shadow-xl text-gray-900">
+          <div id="tc-official-document" className="border-4 border-double border-gray-800 p-8 max-w-3xl mx-auto bg-white shadow-xl text-gray-900">
             {/* Header */}
             <div className="text-center border-b-2 border-gray-800 pb-4">
               <h1 className="text-2xl font-serif font-black tracking-widest uppercase">
-                THE LEARNER&apos;S ACADEMY
+                THE LEADERS ACADEMY(CBSE)
               </h1>
               <p className="text-xs font-semibold text-gray-700">
                 AFFILIATED TO THE CENTRAL BOARD OF SECONDARY EDUCATION, NEW DELHI

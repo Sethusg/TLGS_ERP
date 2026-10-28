@@ -11,6 +11,7 @@ import {
   Calendar,
 } from 'lucide-react';
 import { FeeReceipt, Student } from '../types';
+import { printElement } from '../utils/printDocument';
 
 interface FeeModuleProps {
   receipts: FeeReceipt[];
@@ -89,38 +90,38 @@ export const FeeModule: React.FC<FeeModuleProps> = ({
           </p>
         </div>
 
-        <div className="flex items-center gap-1.5 p-1 bg-gray-100 rounded-lg text-xs font-medium">
+        <div className="flex items-center gap-1.5 p-1 bg-gray-100/90 rounded-lg text-xs font-medium border border-gray-200/60">
           <button
             onClick={() => setActiveTab('collection')}
-            className={`px-3 py-1.5 rounded-md transition-colors ${
-              activeTab === 'collection' ? 'bg-white text-gray-900 shadow-2xs font-bold' : 'text-gray-600 hover:text-gray-900'
+            className={`px-3 py-1.5 rounded-md transition-all ${
+              activeTab === 'collection' ? 'bg-[#2e7d32] text-white shadow-xs font-bold' : 'text-gray-600 hover:text-gray-900'
             }`}
           >
             Fee Collection Counter
           </button>
           <button
             onClick={() => setActiveTab('history')}
-            className={`px-3 py-1.5 rounded-md transition-colors ${
-              activeTab === 'history' ? 'bg-white text-gray-900 shadow-2xs font-bold' : 'text-gray-600 hover:text-gray-900'
+            className={`px-3 py-1.5 rounded-md transition-all ${
+              activeTab === 'history' ? 'bg-[#2e7d32] text-white shadow-xs font-bold' : 'text-gray-600 hover:text-gray-900'
             }`}
           >
             Recent Receipts
           </button>
           <button
             onClick={() => setActiveTab('defaulters')}
-            className={`px-3 py-1.5 rounded-md transition-colors flex items-center gap-1 ${
-              activeTab === 'defaulters' ? 'bg-white text-gray-900 shadow-2xs font-bold' : 'text-gray-600 hover:text-gray-900'
+            className={`px-3 py-1.5 rounded-md transition-all flex items-center gap-1 ${
+              activeTab === 'defaulters' ? 'bg-[#2e7d32] text-white shadow-xs font-bold' : 'text-gray-600 hover:text-gray-900'
             }`}
           >
             <span>Dues & Defaulters</span>
-            <span className="w-4 h-4 rounded-full bg-rose-600 text-white text-[10px] font-bold flex items-center justify-center">
+            <span className={`w-4 h-4 rounded-full text-[10px] font-bold flex items-center justify-center ${activeTab === 'defaulters' ? 'bg-white text-rose-700' : 'bg-rose-600 text-white'}`}>
               {defaulters.length}
             </span>
           </button>
           <button
             onClick={() => setActiveTab('concessions')}
-            className={`px-3 py-1.5 rounded-md transition-colors ${
-              activeTab === 'concessions' ? 'bg-white text-gray-900 shadow-2xs font-bold' : 'text-gray-600 hover:text-gray-900'
+            className={`px-3 py-1.5 rounded-md transition-all ${
+              activeTab === 'concessions' ? 'bg-[#2e7d32] text-white shadow-xs font-bold' : 'text-gray-600 hover:text-gray-900'
             }`}
           >
             Fee Structure & Concession
@@ -130,13 +131,61 @@ export const FeeModule: React.FC<FeeModuleProps> = ({
 
       {/* VIEW: FEE COLLECTION COUNTER */}
       {activeTab === 'collection' && (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          {/* Collection Form */}
-          <div className="lg:col-span-6 bg-white rounded-2xl p-6 shadow-sm border border-gray-100/80 space-y-4">
-            <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
-              <Receipt className="w-5 h-5 text-indigo-600" />
-              <span>Collect Term Fee (2026-2027)</span>
-            </h3>
+        <div className="space-y-6">
+          {/* Multicolor Fee KPI Metric Cards */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="bg-white rounded-2xl p-4 shadow-sm border border-emerald-100 flex items-center justify-between">
+              <div>
+                <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-700">Today's Collection</span>
+                <div className="text-2xl font-black text-gray-900 mt-0.5 tabular-nums">₹1,38,000</div>
+                <span className="text-[10px] text-emerald-600 font-semibold">12 Real-time Receipts</span>
+              </div>
+              <div className="w-11 h-11 rounded-xl bg-[#e8f5e9] flex items-center justify-center text-[#2e7d32] shrink-0">
+                <IndianRupee className="w-5 h-5" />
+              </div>
+            </div>
+
+            <div className="bg-white rounded-2xl p-4 shadow-sm border border-cyan-100 flex items-center justify-between">
+              <div>
+                <span className="text-[11px] font-bold uppercase tracking-wider text-cyan-700">Digital / UPI Rate</span>
+                <div className="text-2xl font-black text-gray-900 mt-0.5 tabular-nums">88.4%</div>
+                <span className="text-[10px] text-cyan-600 font-semibold">Instant Bank Settlement</span>
+              </div>
+              <div className="w-11 h-11 rounded-xl bg-[#e0f7fa] flex items-center justify-center text-[#00acc1] shrink-0">
+                <CreditCard className="w-5 h-5" />
+              </div>
+            </div>
+
+            <div className="bg-white rounded-2xl p-4 shadow-sm border border-pink-100 flex items-center justify-between">
+              <div>
+                <span className="text-[11px] font-bold uppercase tracking-wider text-pink-700">Overdue Dues</span>
+                <div className="text-2xl font-black text-gray-900 mt-0.5 tabular-nums">₹46,500</div>
+                <span className="text-[10px] text-rose-500 font-semibold">{defaulters.length} Pending Accounts</span>
+              </div>
+              <div className="w-11 h-11 rounded-xl bg-[#fce4ec] flex items-center justify-center text-[#e91e63] shrink-0">
+                <AlertTriangle className="w-5 h-5" />
+              </div>
+            </div>
+
+            <div className="bg-white rounded-2xl p-4 shadow-sm border border-amber-100 flex items-center justify-between">
+              <div>
+                <span className="text-[11px] font-bold uppercase tracking-wider text-amber-700">Scholarships & Concession</span>
+                <div className="text-2xl font-black text-gray-900 mt-0.5 tabular-nums">₹1,20,000</div>
+                <span className="text-[10px] text-amber-600 font-semibold">CBSE Merit & Sibling Rebates</span>
+              </div>
+              <div className="w-11 h-11 rounded-xl bg-[#fff8e1] flex items-center justify-center text-[#f57f17] shrink-0">
+                <CheckCircle2 className="w-5 h-5" />
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            {/* Collection Form */}
+            <div className="lg:col-span-6 bg-white rounded-2xl p-6 shadow-sm border border-gray-100/80 space-y-4">
+              <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
+                <Receipt className="w-5 h-5 text-emerald-600" />
+                <span>Collect Term Fee (2026-2027)</span>
+              </h3>
 
             <form onSubmit={handleCollectFee} className="space-y-4">
               <div>
@@ -232,19 +281,27 @@ export const FeeModule: React.FC<FeeModuleProps> = ({
           {/* Receipt Preview on Right */}
           <div className="lg:col-span-6 bg-white rounded-2xl p-6 shadow-sm border border-gray-100/80">
             {generatedReceipt ? (
-              <div className="border border-gray-300 rounded-xl p-5 bg-white space-y-4">
+              <div id="fee-receipt-print-area" className="border border-gray-300 rounded-xl p-5 bg-white space-y-4">
                 <div className="flex items-center justify-between border-b border-gray-200 pb-3">
                   <div>
-                    <h4 className="text-sm font-black uppercase text-gray-900">
-                      THE LEARNER&apos;S ACADEMY CBSE
+                    <h4 className="text-sm font-black uppercase text-gray-900 tracking-wide">
+                      THE LEADERS ACADEMY(CBSE)
                     </h4>
-                    <p className="text-[10px] text-gray-500">Official Fee Payment Receipt</p>
+                    <p className="text-[10px] text-gray-500">
+                      Affiliation #1930812 · School Code: 45091 · Official Fee Payment Receipt
+                    </p>
                   </div>
                   <button
-                    onClick={() => window.print()}
-                    className="px-2.5 py-1 text-xs font-semibold bg-gray-100 hover:bg-gray-200 rounded flex items-center gap-1"
+                    type="button"
+                    onClick={() =>
+                      printElement('fee-receipt-print-area', {
+                        title: `Fee_Receipt_${generatedReceipt.receiptNo}_THE_LEADERS_ACADEMY`,
+                      })
+                    }
+                    className="px-2.5 py-1 text-xs font-semibold bg-gray-100 hover:bg-gray-200 text-gray-800 rounded flex items-center gap-1 transition-colors cursor-pointer border border-gray-200 shadow-2xs"
+                    title="Print fee receipt"
                   >
-                    <Printer className="w-3 h-3" />
+                    <Printer className="w-3.5 h-3.5 text-gray-700" />
                     <span>Print</span>
                   </button>
                 </div>
@@ -321,6 +378,7 @@ export const FeeModule: React.FC<FeeModuleProps> = ({
             )}
           </div>
         </div>
+      </div>
       )}
 
       {/* VIEW: RECENT RECEIPTS HISTORY */}

@@ -27,13 +27,21 @@ import {
   Shield,
   Layers,
   BarChart3,
+  Download,
+  QrCode,
+  CreditCard,
+  X,
 } from 'lucide-react';
 import { Staff, LeaveRequest, StaffRole, ArchivedStaffDetails } from '../types';
+import { printElement } from '../utils/printDocument';
 import { OnboardStaffModal } from './Staff/OnboardStaffModal';
 import { ArchiveStaffModal } from './Staff/ArchiveStaffModal';
 import { StaffDossierModal } from './Staff/StaffDossierModal';
 import { EditStaffModal } from './Staff/EditStaffModal';
 import { StaffAnalyticsDashboard } from './Staff/StaffAnalyticsDashboard';
+import { StaffQRCodeModal } from './Staff/StaffQRCodeModal';
+import { StaffPayrollModule } from './Staff/StaffPayrollModule';
+import { StaffLeaveCalendar } from './Staff/StaffLeaveCalendar';
 
 interface StaffModuleProps {
   staffList: Staff[];
@@ -61,11 +69,12 @@ export const StaffModule: React.FC<StaffModuleProps> = ({
   onRestoreStaff,
 }) => {
   const [activeTab, setActiveTab] = useState<
-    'info' | 'archived' | 'leave-request' | 'leave-apply' | 'leave-report' | 'report'
+    'info' | 'archived' | 'leave-calendar' | 'leave-request' | 'leave-apply' | 'payroll' | 'report'
   >(() => {
+    if (subItem === 'staff-leave-calendar') return 'leave-calendar';
+    if (subItem === 'staff-payroll') return 'payroll';
     if (subItem === 'staff-leave-request') return 'leave-request';
     if (subItem === 'staff-leave-apply') return 'leave-apply';
-    if (subItem === 'staff-leave-report') return 'leave-report';
     if (subItem === 'staff-report') return 'report';
     return 'info';
   });
@@ -73,6 +82,7 @@ export const StaffModule: React.FC<StaffModuleProps> = ({
   // Modal States
   const [isOnboardOpen, setIsOnboardOpen] = useState(false);
   const [selectedStaffForDossier, setSelectedStaffForDossier] = useState<Staff | null>(null);
+  const [selectedStaffForQR, setSelectedStaffForQR] = useState<Staff | null>(null);
   const [selectedStaffForArchive, setSelectedStaffForArchive] = useState<Staff | null>(null);
   const [selectedStaffForEdit, setSelectedStaffForEdit] = useState<Staff | null>(null);
 
@@ -97,19 +107,85 @@ export const StaffModule: React.FC<StaffModuleProps> = ({
   const archivedStaff = staffList.filter((s) => s.status === 'Archived');
 
   const filteredStaff = (activeTab === 'archived' ? archivedStaff : activeStaff).filter((s) => {
+    const q = search.toLowerCase().trim();
     const matchesSearch =
-      s.name.toLowerCase().includes(search.toLowerCase()) ||
-      s.empId.toLowerCase().includes(search.toLowerCase()) ||
-      s.designation.toLowerCase().includes(search.toLowerCase()) ||
-      s.department.toLowerCase().includes(search.toLowerCase()) ||
-      (s.subject && s.subject.toLowerCase().includes(search.toLowerCase())) ||
-      (s.responsibilities && s.responsibilities.some((r) => r.toLowerCase().includes(search.toLowerCase())));
+      !q ||
+      s.name.toLowerCase().includes(q) ||
+      s.empId.toLowerCase().includes(q) ||
+      s.role.toLowerCase().includes(q) ||
+      s.department.toLowerCase().includes(q) ||
+      s.designation.toLowerCase().includes(q) ||
+      (s.subject && s.subject.toLowerCase().includes(q)) ||
+      (s.responsibilities && s.responsibilities.some((r) => r.toLowerCase().includes(q)));
 
     const matchesRole = roleFilter === 'ALL' || s.role === roleFilter;
     const matchesDept = deptFilter === 'ALL' || s.department === deptFilter;
 
     return matchesSearch && matchesRole && matchesDept;
   });
+
+  const handleExportCSV = () => {
+    const headers = [
+      'Employee ID',
+      'Full Name',
+      'Role',
+      'Designation',
+      'Department',
+      'Gender',
+      'Phone',
+      'Email',
+      'Qualification',
+      'Experience',
+      'Joining Date',
+      'Employment Type',
+      'Assigned Subject',
+      'Responsibilities',
+      'Leave Balance (Days)',
+      'Status',
+    ];
+
+    const sourceData = filteredStaff;
+
+    const rows = sourceData.map((s) => [
+      s.empId,
+      `"${s.name.replace(/"/g, '""')}"`,
+      s.role,
+      `"${s.designation.replace(/"/g, '""')}"`,
+      `"${s.department.replace(/"/g, '""')}"`,
+      s.gender || 'Not Specified',
+      s.phone,
+      s.email,
+      `"${s.qualification.replace(/"/g, '""')}"`,
+      `"${s.experienceYears ? `${s.experienceYears} Years` : '5+ Years'}"`,
+      s.joiningDate,
+      s.employmentType,
+      `"${(s.subject || 'N/A').replace(/"/g, '""')}"`,
+      `"${(s.responsibilities?.join('; ') || 'N/A').replace(/"/g, '""')}"`,
+      s.leaveBalance,
+      s.status,
+    ]);
+
+    const csvContent =
+      'data:text/csv;charset=utf-8,\uFEFF' +
+      [headers.join(','), ...rows.map((e) => e.join(','))].join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute(
+      'download',
+      `THE_LEADERS_ACADEMY_Staff_Roster_${activeTab === 'archived' ? 'Archived_' : ''}${new Date().toISOString().slice(0, 10)}.csv`
+    );
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handlePrintStaffRoster = () => {
+    printElement('staff-roster-print-area', {
+      title: `THE_LEADERS_ACADEMY_Staff_Roster_${activeTab === 'archived' ? 'Archived_' : ''}${new Date().toISOString().slice(0, 10)}`,
+      landscape: true,
+    });
+  };
 
   const filteredLeave = leaveRequests.filter((r) => {
     const matchesStatus = leaveStatusFilter === 'ALL' || r.status === leaveStatusFilter;
@@ -158,12 +234,12 @@ export const StaffModule: React.FC<StaffModuleProps> = ({
 
         <div className="flex flex-wrap items-center gap-2">
           {/* Tabs */}
-          <div className="flex flex-wrap items-center gap-1 p-1 bg-gray-100 rounded-lg text-xs font-medium">
+          <div className="flex flex-wrap items-center gap-1 p-1 bg-gray-100/90 rounded-lg text-xs font-medium border border-gray-200/60">
             <button
               onClick={() => setActiveTab('info')}
-              className={`px-3 py-1.5 rounded-md transition-colors ${
+              className={`px-3 py-1.5 rounded-md transition-all ${
                 activeTab === 'info'
-                  ? 'bg-white text-gray-900 shadow-2xs font-bold'
+                  ? 'bg-[#43a047] text-white shadow-xs font-bold'
                   : 'text-gray-600 hover:text-gray-900'
               }`}
             >
@@ -171,35 +247,57 @@ export const StaffModule: React.FC<StaffModuleProps> = ({
             </button>
             <button
               onClick={() => setActiveTab('archived')}
-              className={`px-3 py-1.5 rounded-md transition-colors flex items-center gap-1 ${
+              className={`px-3 py-1.5 rounded-md transition-all flex items-center gap-1 ${
                 activeTab === 'archived'
-                  ? 'bg-white text-rose-800 shadow-2xs font-bold'
+                  ? 'bg-rose-600 text-white shadow-xs font-bold'
                   : 'text-gray-600 hover:text-gray-900'
               }`}
             >
-              <span>Archived Records</span>
-              <span className="px-1.5 py-0.2 bg-rose-100 text-rose-800 rounded-full text-[10px] font-bold">
+              <span>Archived</span>
+              <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${activeTab === 'archived' ? 'bg-white text-rose-700' : 'bg-rose-100 text-rose-800'}`}>
                 {archivedStaff.length}
               </span>
             </button>
             <button
+              onClick={() => setActiveTab('leave-calendar')}
+              className={`px-3 py-1.5 rounded-md transition-all flex items-center gap-1.5 ${
+                activeTab === 'leave-calendar'
+                  ? 'bg-[#f57f17] text-white shadow-xs font-bold'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              <Calendar className={`w-3.5 h-3.5 ${activeTab === 'leave-calendar' ? 'text-white' : 'text-[#f57f17]'}`} />
+              <span>Leave Calendar</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('payroll')}
+              className={`px-3 py-1.5 rounded-md transition-all flex items-center gap-1.5 ${
+                activeTab === 'payroll'
+                  ? 'bg-emerald-600 text-white shadow-xs font-bold'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              <CreditCard className={`w-3.5 h-3.5 ${activeTab === 'payroll' ? 'text-white' : 'text-emerald-600'}`} />
+              <span>Payroll</span>
+            </button>
+            <button
               onClick={() => setActiveTab('leave-request')}
-              className={`px-3 py-1.5 rounded-md transition-colors flex items-center gap-1.5 ${
+              className={`px-3 py-1.5 rounded-md transition-all flex items-center gap-1.5 ${
                 activeTab === 'leave-request'
-                  ? 'bg-white text-gray-900 shadow-2xs font-bold'
+                  ? 'bg-amber-600 text-white shadow-xs font-bold'
                   : 'text-gray-600 hover:text-gray-900'
               }`}
             >
               <span>Leave Requests</span>
-              <span className="w-4 h-4 rounded-full bg-[#f57f17] text-white text-[10px] font-bold flex items-center justify-center">
+              <span className={`w-4 h-4 rounded-full text-[10px] font-bold flex items-center justify-center ${activeTab === 'leave-request' ? 'bg-white text-amber-700' : 'bg-[#f57f17] text-white'}`}>
                 {leaveRequests.filter((r) => r.status === 'Pending').length}
               </span>
             </button>
             <button
               onClick={() => setActiveTab('leave-apply')}
-              className={`px-3 py-1.5 rounded-md transition-colors ${
+              className={`px-3 py-1.5 rounded-md transition-all ${
                 activeTab === 'leave-apply'
-                  ? 'bg-white text-gray-900 shadow-2xs font-bold'
+                  ? 'bg-blue-600 text-white shadow-xs font-bold'
                   : 'text-gray-600 hover:text-gray-900'
               }`}
             >
@@ -207,14 +305,14 @@ export const StaffModule: React.FC<StaffModuleProps> = ({
             </button>
             <button
               onClick={() => setActiveTab('report')}
-              className={`px-3 py-1.5 rounded-md transition-colors flex items-center gap-1.5 ${
+              className={`px-3 py-1.5 rounded-md transition-all flex items-center gap-1.5 ${
                 activeTab === 'report'
-                  ? 'bg-white text-gray-900 shadow-2xs font-bold'
+                  ? 'bg-[#00acc1] text-white shadow-xs font-bold'
                   : 'text-gray-600 hover:text-gray-900'
               }`}
             >
-              <BarChart3 className="w-3.5 h-3.5 text-[#00acc1]" />
-              <span>Workforce Analytics</span>
+              <BarChart3 className={`w-3.5 h-3.5 ${activeTab === 'report' ? 'text-white' : 'text-[#00acc1]'}`} />
+              <span>Analytics</span>
             </button>
           </div>
 
@@ -228,6 +326,55 @@ export const StaffModule: React.FC<StaffModuleProps> = ({
           </button>
         </div>
       </div>
+
+      {/* Multicolor Faculty KPI Cards for Active Staff */}
+      {activeTab === 'info' && (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="bg-white rounded-2xl p-4 shadow-sm border border-emerald-100 flex items-center justify-between">
+            <div>
+              <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-700">Total Staff</span>
+              <div className="text-2xl font-black text-gray-900 mt-0.5 tabular-nums">120</div>
+              <span className="text-[10px] text-emerald-600 font-semibold">96 Teaching · 24 Admin</span>
+            </div>
+            <div className="w-11 h-11 rounded-xl bg-[#e8f5e9] flex items-center justify-center text-[#43a047] shrink-0">
+              <Users className="w-5 h-5" />
+            </div>
+          </div>
+
+          <div className="bg-white rounded-2xl p-4 shadow-sm border border-cyan-100 flex items-center justify-between">
+            <div>
+              <span className="text-[11px] font-bold uppercase tracking-wider text-cyan-700">On Active Duty</span>
+              <div className="text-2xl font-black text-gray-900 mt-0.5 tabular-nums">114</div>
+              <span className="text-[10px] text-cyan-600 font-semibold">Biometric verified today</span>
+            </div>
+            <div className="w-11 h-11 rounded-xl bg-[#e0f7fa] flex items-center justify-center text-[#00acc1] shrink-0">
+              <CheckCircle2 className="w-5 h-5" />
+            </div>
+          </div>
+
+          <div className="bg-white rounded-2xl p-4 shadow-sm border border-amber-100 flex items-center justify-between">
+            <div>
+              <span className="text-[11px] font-bold uppercase tracking-wider text-amber-700">On Approved Leave</span>
+              <div className="text-2xl font-black text-gray-900 mt-0.5 tabular-nums">6</div>
+              <span className="text-[10px] text-amber-600 font-semibold">Substitutes deployed</span>
+            </div>
+            <div className="w-11 h-11 rounded-xl bg-[#fff8e1] flex items-center justify-center text-[#f57f17] shrink-0">
+              <Calendar className="w-5 h-5" />
+            </div>
+          </div>
+
+          <div className="bg-white rounded-2xl p-4 shadow-sm border border-purple-100 flex items-center justify-between">
+            <div>
+              <span className="text-[11px] font-bold uppercase tracking-wider text-purple-700">Monthly Payroll</span>
+              <div className="text-2xl font-black text-gray-900 mt-0.5 tabular-nums">₹54.2 L</div>
+              <span className="text-[10px] text-purple-600 font-semibold">7th CPC Ledger Ready</span>
+            </div>
+            <div className="w-11 h-11 rounded-xl bg-[#ede7f6] flex items-center justify-center text-[#8e24aa] shrink-0">
+              <CreditCard className="w-5 h-5" />
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* VIEW: ACTIVE STAFF DIRECTORY OR ARCHIVED RECORDS */}
       {(activeTab === 'info' || activeTab === 'archived') && (
@@ -253,17 +400,47 @@ export const StaffModule: React.FC<StaffModuleProps> = ({
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search by name, emp id, subject, duty..."
-                className="w-full pl-9 pr-3 py-2 text-xs bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:border-[#43a047] focus:bg-white"
+                placeholder="Filter staff by name, department, or role..."
+                className="w-full pl-9 pr-8 py-2 text-xs bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:border-[#43a047] focus:bg-white transition-colors"
               />
+              {search && (
+                <button
+                  onClick={() => setSearch('')}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-0.5 rounded-full hover:bg-gray-200"
+                  title="Clear search filter"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
             </div>
 
             <div className="flex flex-wrap items-center gap-2 w-full md:w-auto justify-end">
+              {/* Export to CSV Button */}
+              <button
+                onClick={handleExportCSV}
+                className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-800 text-xs font-semibold rounded-lg flex items-center gap-1.5 transition-colors border border-gray-200 shadow-2xs"
+                title="Download current staff roster as a formatted CSV file"
+              >
+                <Download className="w-3.5 h-3.5 text-emerald-700" />
+                <span>Export to CSV</span>
+              </button>
+
+              {/* Print Roster Button */}
+              <button
+                type="button"
+                onClick={handlePrintStaffRoster}
+                className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-800 text-xs font-semibold rounded-lg flex items-center gap-1.5 transition-colors border border-gray-200 shadow-2xs cursor-pointer"
+                title="Print current staff roster"
+              >
+                <Printer className="w-3.5 h-3.5 text-gray-700" />
+                <span>Print</span>
+              </button>
+
               {/* Role Filter */}
               <select
                 value={roleFilter}
                 onChange={(e) => setRoleFilter(e.target.value as any)}
-                className="px-3 py-1.5 text-xs bg-gray-50 border border-gray-200 rounded-lg focus:outline-none"
+                className="px-3 py-1.5 text-xs bg-gray-50 border border-gray-200 rounded-lg focus:outline-none cursor-pointer"
               >
                 <option value="ALL">All Roles</option>
                 <option value="Teacher">Teachers</option>
@@ -279,7 +456,7 @@ export const StaffModule: React.FC<StaffModuleProps> = ({
               <select
                 value={deptFilter}
                 onChange={(e) => setDeptFilter(e.target.value)}
-                className="px-3 py-1.5 text-xs bg-gray-50 border border-gray-200 rounded-lg focus:outline-none"
+                className="px-3 py-1.5 text-xs bg-gray-50 border border-gray-200 rounded-lg focus:outline-none cursor-pointer"
               >
                 <option value="ALL">All Departments</option>
                 <option value="Mathematics">Mathematics</option>
@@ -314,9 +491,26 @@ export const StaffModule: React.FC<StaffModuleProps> = ({
             </div>
           </div>
 
+          {/* Active Filter Counter Pill */}
+          {(search || roleFilter !== 'ALL' || deptFilter !== 'ALL') && (
+            <div className="flex items-center justify-between px-3 py-1.5 bg-emerald-50 border border-emerald-200 rounded-lg text-xs text-emerald-900">
+              <span className="font-semibold">Showing {filteredStaff.length} matching staff records</span>
+              <button
+                onClick={() => {
+                  setSearch('');
+                  setRoleFilter('ALL');
+                  setDeptFilter('ALL');
+                }}
+                className="text-[11px] font-bold text-emerald-700 hover:underline"
+              >
+                Reset Filters
+              </button>
+            </div>
+          )}
+
           {/* TABLE VIEW */}
           {viewMode === 'table' && (
-            <div className="overflow-x-auto border border-gray-100 rounded-xl">
+            <div id="staff-roster-print-area" className="overflow-x-auto border border-gray-100 rounded-xl bg-white p-2">
               <table className="w-full text-left text-xs">
                 <thead className="bg-gray-50 text-gray-600 border-b border-gray-200 font-semibold">
                   <tr>
@@ -395,6 +589,14 @@ export const StaffModule: React.FC<StaffModuleProps> = ({
                             className="flex items-center justify-end gap-1"
                             onClick={(e) => e.stopPropagation()}
                           >
+                            <button
+                              onClick={() => setSelectedStaffForQR(stf)}
+                              className="p-1 text-pink-600 hover:bg-pink-50 rounded transition-colors"
+                              title="Digital ID QR Code"
+                            >
+                              <QrCode className="w-3.5 h-3.5" />
+                            </button>
+
                             <button
                               onClick={() => setSelectedStaffForDossier(stf)}
                               className="px-2 py-1 text-xs text-blue-600 hover:bg-blue-50 rounded font-semibold inline-flex items-center gap-1"
@@ -502,16 +704,29 @@ export const StaffModule: React.FC<StaffModuleProps> = ({
 
                   <div className="pt-2 border-t border-gray-100 flex items-center justify-between text-xs text-gray-500">
                     <span className="font-mono text-[11px]">{stf.phone}</span>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setSelectedStaffForDossier(stf);
-                      }}
-                      className="text-xs font-semibold text-[#43a047] hover:underline flex items-center gap-0.5"
-                    >
-                      <span>Profile</span>
-                      <ChevronRight className="w-3.5 h-3.5" />
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedStaffForQR(stf);
+                        }}
+                        className="text-xs font-semibold text-pink-600 hover:text-pink-700 flex items-center gap-0.5"
+                        title="Digital ID QR Code"
+                      >
+                        <QrCode className="w-3.5 h-3.5" />
+                        <span>QR</span>
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedStaffForDossier(stf);
+                        }}
+                        className="text-xs font-semibold text-[#43a047] hover:underline flex items-center gap-0.5"
+                      >
+                        <span>Profile</span>
+                        <ChevronRight className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -742,10 +957,27 @@ export const StaffModule: React.FC<StaffModuleProps> = ({
         </div>
       )}
 
+      {/* VIEW: LEAVE CALENDAR */}
+      {activeTab === 'leave-calendar' && (
+        <StaffLeaveCalendar staffList={staffList} leaveRequests={leaveRequests} />
+      )}
+
+      {/* VIEW: PAYROLL & DIGITAL PAYSLIPS */}
+      {activeTab === 'payroll' && (
+        <StaffPayrollModule staffList={staffList} leaveRequests={leaveRequests} />
+      )}
+
       {/* VIEW: DEPARTMENT ANALYTICS & VISUALIZATION DASHBOARD */}
       {activeTab === 'report' && (
         <StaffAnalyticsDashboard staffList={staffList} leaveRequests={leaveRequests} />
       )}
+
+      {/* Digital Staff ID Card & QR Authentication Modal */}
+      <StaffQRCodeModal
+        staff={selectedStaffForQR}
+        isOpen={!!selectedStaffForQR}
+        onClose={() => setSelectedStaffForQR(null)}
+      />
 
       {/* Onboard New Staff Modal */}
       <OnboardStaffModal
@@ -762,6 +994,7 @@ export const StaffModule: React.FC<StaffModuleProps> = ({
         onEdit={(stf) => setSelectedStaffForEdit(stf)}
         onArchive={(stf) => setSelectedStaffForArchive(stf)}
         onRestore={onRestoreStaff}
+        onOpenQR={(stf) => setSelectedStaffForQR(stf)}
       />
 
       {/* Edit Staff Profile Modal */}

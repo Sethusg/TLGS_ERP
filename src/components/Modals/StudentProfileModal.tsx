@@ -15,6 +15,7 @@ import {
   FileText,
 } from 'lucide-react';
 import { Student } from '../../types';
+import { printElement } from '../../utils/printDocument';
 
 interface StudentProfileModalProps {
   student: Student | null;
@@ -65,7 +66,7 @@ export const StudentProfileModal: React.FC<StudentProfileModalProps> = ({
         </div>
 
         {/* Content Body */}
-        <div className="p-6 space-y-5 max-h-[75vh] overflow-y-auto">
+        <div id="student-profile-dossier-area" className="p-6 space-y-5 max-h-[75vh] overflow-y-auto bg-white">
           {/* Key Metrics Strip */}
           <div className="grid grid-cols-3 gap-3">
             <div className="p-3 bg-blue-50/70 border border-blue-100 rounded-xl">
@@ -160,6 +161,20 @@ export const StudentProfileModal: React.FC<StudentProfileModalProps> = ({
             >
               <FileText className="w-3.5 h-3.5 text-[#e91e63]" />
               <span>Issue TC</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() =>
+                printElement('student-profile-dossier-area', {
+                  title: `Student_Profile_${student.admissionNo}_THE_LEADERS_ACADEMY`,
+                })
+              }
+              className="px-3 py-1.5 text-xs font-semibold text-gray-700 hover:text-gray-900 bg-white border border-gray-200 hover:bg-gray-100 rounded-lg flex items-center gap-1 shadow-2xs cursor-pointer transition-colors"
+              title="Print student profile dossier"
+            >
+              <Printer className="w-3.5 h-3.5 text-gray-700" />
+              <span>Print Profile</span>
             </button>
           </div>
 

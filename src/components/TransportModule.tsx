@@ -10,17 +10,20 @@ import {
   AlertCircle,
   Fuel,
   ShieldCheck,
+  Camera,
 } from 'lucide-react';
 import { BusRoute } from '../types';
 
 interface TransportModuleProps {
   busRoutes: BusRoute[];
   subItem?: string;
+  onOpenQRScanner?: () => void;
 }
 
 export const TransportModule: React.FC<TransportModuleProps> = ({
   busRoutes,
   subItem = 'transport-bus-locations',
+  onOpenQRScanner,
 }) => {
   const [activeTab, setActiveTab] = useState<'locations' | 'routes' | 'reports'>(() => {
     if (subItem === 'transport-routes') return 'routes';
@@ -36,7 +39,7 @@ export const TransportModule: React.FC<TransportModuleProps> = ({
       <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100/80 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-xl font-bold text-gray-900 tracking-tight flex items-center gap-2">
-            <Bus className="w-6 h-6 text-amber-600" />
+            <Bus className="w-6 h-6 text-[#f57f17]" />
             <span>School Transport & Fleet GPS Telemetry</span>
           </h2>
           <p className="text-xs text-gray-500 mt-0.5">
@@ -44,37 +47,98 @@ export const TransportModule: React.FC<TransportModuleProps> = ({
           </p>
         </div>
 
-        <div className="flex items-center gap-1.5 p-1 bg-gray-100 rounded-lg text-xs font-medium">
-          <button
-            onClick={() => setActiveTab('locations')}
-            className={`px-3 py-1.5 rounded-md transition-colors ${
-              activeTab === 'locations' ? 'bg-white text-gray-900 shadow-2xs font-bold' : 'text-gray-600 hover:text-gray-900'
-            }`}
-          >
-            Live Bus Locations
-          </button>
-          <button
-            onClick={() => setActiveTab('routes')}
-            className={`px-3 py-1.5 rounded-md transition-colors ${
-              activeTab === 'routes' ? 'bg-white text-gray-900 shadow-2xs font-bold' : 'text-gray-600 hover:text-gray-900'
-            }`}
-          >
-            Routes & Stops
-          </button>
-          <button
-            onClick={() => setActiveTab('reports')}
-            className={`px-3 py-1.5 rounded-md transition-colors ${
-              activeTab === 'reports' ? 'bg-white text-gray-900 shadow-2xs font-bold' : 'text-gray-600 hover:text-gray-900'
-            }`}
-          >
-            Fleet Reports
-          </button>
+        <div className="flex flex-wrap items-center gap-2">
+          {onOpenQRScanner && (
+            <button
+              onClick={onOpenQRScanner}
+              className="px-3.5 py-1.5 bg-[#f57f17] hover:bg-[#e65100] text-white text-xs font-semibold rounded-lg shadow-2xs flex items-center gap-1.5 transition-colors shrink-0"
+              title="Launch Camera QR Scanner for Rapid Student Boarding Verification"
+            >
+              <Camera className="w-3.5 h-3.5" />
+              <span>Camera QR Bus Check-In</span>
+            </button>
+          )}
+
+          <div className="flex items-center gap-1.5 p-1 bg-gray-100/90 rounded-lg text-xs font-medium border border-gray-200/60">
+            <button
+              onClick={() => setActiveTab('locations')}
+              className={`px-3 py-1.5 rounded-md transition-all ${
+                activeTab === 'locations' ? 'bg-[#f57f17] text-white shadow-xs font-bold' : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              Live Bus Locations
+            </button>
+            <button
+              onClick={() => setActiveTab('routes')}
+              className={`px-3 py-1.5 rounded-md transition-all ${
+                activeTab === 'routes' ? 'bg-[#f57f17] text-white shadow-xs font-bold' : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              Routes & Stops
+            </button>
+            <button
+              onClick={() => setActiveTab('reports')}
+              className={`px-3 py-1.5 rounded-md transition-all ${
+                activeTab === 'reports' ? 'bg-[#f57f17] text-white shadow-xs font-bold' : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              Fleet Reports
+            </button>
+          </div>
         </div>
       </div>
 
       {/* VIEW: LIVE LOCATIONS WITH MAP SIMULATOR */}
       {activeTab === 'locations' && (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <div className="space-y-6">
+          {/* Multicolor Fleet KPI Cards */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="bg-white rounded-2xl p-4 shadow-sm border border-amber-100 flex items-center justify-between">
+              <div>
+                <span className="text-[11px] font-bold uppercase tracking-wider text-amber-700">Active Fleet</span>
+                <div className="text-2xl font-black text-gray-900 mt-0.5 tabular-nums">12 Buses</div>
+                <span className="text-[10px] text-amber-600 font-semibold">100% GPS Active</span>
+              </div>
+              <div className="w-11 h-11 rounded-xl bg-[#fff8e1] flex items-center justify-center text-[#f57f17] shrink-0">
+                <Bus className="w-5 h-5" />
+              </div>
+            </div>
+
+            <div className="bg-white rounded-2xl p-4 shadow-sm border border-emerald-100 flex items-center justify-between">
+              <div>
+                <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-700">On-Time Index</span>
+                <div className="text-2xl font-black text-gray-900 mt-0.5 tabular-nums">98.6%</div>
+                <span className="text-[10px] text-emerald-600 font-semibold">Morning Arrival Window</span>
+              </div>
+              <div className="w-11 h-11 rounded-xl bg-[#e8f5e9] flex items-center justify-center text-[#43a047] shrink-0">
+                <CheckCircle2 className="w-5 h-5" />
+              </div>
+            </div>
+
+            <div className="bg-white rounded-2xl p-4 shadow-sm border border-cyan-100 flex items-center justify-between">
+              <div>
+                <span className="text-[11px] font-bold uppercase tracking-wider text-cyan-700">Daily Commuters</span>
+                <div className="text-2xl font-black text-gray-900 mt-0.5 tabular-nums">782</div>
+                <span className="text-[10px] text-cyan-600 font-semibold">QR Camera Verified</span>
+              </div>
+              <div className="w-11 h-11 rounded-xl bg-[#e0f7fa] flex items-center justify-center text-[#00acc1] shrink-0">
+                <Users className="w-5 h-5" />
+              </div>
+            </div>
+
+            <div className="bg-white rounded-2xl p-4 shadow-sm border border-purple-100 flex items-center justify-between">
+              <div>
+                <span className="text-[11px] font-bold uppercase tracking-wider text-purple-700">Speed Compliance</span>
+                <div className="text-2xl font-black text-gray-900 mt-0.5 tabular-nums">100%</div>
+                <span className="text-[10px] text-purple-600 font-semibold">≤40 km/h School Limit</span>
+              </div>
+              <div className="w-11 h-11 rounded-xl bg-[#ede7f6] flex items-center justify-center text-[#8e24aa] shrink-0">
+                <Clock className="w-5 h-5" />
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           {/* Left Fleet List */}
           <div className="lg:col-span-5 space-y-3">
             <h3 className="text-xs font-bold uppercase tracking-wider text-gray-500 px-1">
@@ -235,6 +299,7 @@ export const TransportModule: React.FC<TransportModuleProps> = ({
             </div>
           </div>
         </div>
+      </div>
       )}
 
       {/* VIEW: ROUTES */}

@@ -18,8 +18,10 @@ import {
   RotateCcw,
   Shield,
   Layers,
+  QrCode,
 } from 'lucide-react';
 import { Staff } from '../../types';
+import { printElement } from '../../utils/printDocument';
 
 interface StaffDossierModalProps {
   staff: Staff | null;
@@ -28,6 +30,7 @@ interface StaffDossierModalProps {
   onEdit: (staff: Staff) => void;
   onArchive: (staff: Staff) => void;
   onRestore?: (staffId: string) => void;
+  onOpenQR?: (staff: Staff) => void;
 }
 
 export const StaffDossierModal: React.FC<StaffDossierModalProps> = ({
@@ -37,6 +40,7 @@ export const StaffDossierModal: React.FC<StaffDossierModalProps> = ({
   onEdit,
   onArchive,
   onRestore,
+  onOpenQR,
 }) => {
   if (!isOpen || !staff) return null;
 
@@ -129,7 +133,7 @@ export const StaffDossierModal: React.FC<StaffDossierModalProps> = ({
         </div>
 
         {/* Content Body */}
-        <div className="p-6 space-y-5 overflow-y-auto flex-1 text-xs">
+        <div id="staff-dossier-print-area" className="p-6 space-y-5 overflow-y-auto flex-1 text-xs bg-white">
           {activeTab === 'profile' && (
             <>
               {/* Stat Cards */}
@@ -270,10 +274,10 @@ export const StaffDossierModal: React.FC<StaffDossierModalProps> = ({
 
           {activeTab === 'relieving' && staff.archivedDetails && (
             <div className="space-y-4">
-              <div className="p-4 border-2 border-gray-800 rounded-xl bg-white space-y-4">
+              <div id="staff-relieving-letter-document" className="p-6 border-2 border-gray-800 rounded-xl bg-white space-y-4">
                 <div className="text-center border-b border-gray-300 pb-3">
-                  <h4 className="font-serif font-black text-sm uppercase">THE LEARNER&apos;S ACADEMY CBSE</h4>
-                  <p className="text-[10px] text-gray-500">Service Relieving & No-Dues Clearance Dossier</p>
+                  <h4 className="font-serif font-black text-sm uppercase">THE LEADERS ACADEMY(CBSE)</h4>
+                  <p className="text-[10px] text-gray-500">Service Relieving & No-Dues Clearance Dossier · Affiliation #1930812</p>
                   <span className="font-mono text-[10px] font-bold text-gray-700 block mt-1">
                     Ref: {staff.archivedDetails.relievingLetterNo}
                   </span>
@@ -308,8 +312,14 @@ export const StaffDossierModal: React.FC<StaffDossierModalProps> = ({
 
               <div className="flex justify-end">
                 <button
-                  onClick={() => window.print()}
-                  className="px-3.5 py-1.5 bg-gray-800 text-white rounded-lg font-semibold flex items-center gap-1.5"
+                  type="button"
+                  onClick={() =>
+                    printElement('staff-relieving-letter-document', {
+                      title: `Relieving_Letter_${staff.empId}_THE_LEADERS_ACADEMY`,
+                    })
+                  }
+                  className="px-3.5 py-1.5 bg-gray-800 hover:bg-gray-700 text-white rounded-lg font-semibold flex items-center gap-1.5 cursor-pointer shadow-2xs transition-colors"
+                  title="Print official relieving certificate"
                 >
                   <Printer className="w-3.5 h-3.5" />
                   <span>Print Official Relieving Letter</span>
@@ -361,11 +371,27 @@ export const StaffDossierModal: React.FC<StaffDossierModalProps> = ({
               )
             )}
 
+            {onOpenQR && (
+              <button
+                onClick={() => onOpenQR(staff)}
+                className="px-3 py-1.5 text-xs font-semibold text-pink-700 bg-pink-50 hover:bg-pink-100 border border-pink-200 rounded-lg flex items-center gap-1.5 transition-colors"
+              >
+                <QrCode className="w-3.5 h-3.5" />
+                <span>Digital ID QR</span>
+              </button>
+            )}
+
             <button
-              onClick={() => window.print()}
-              className="px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-200 rounded-lg flex items-center gap-1"
+              type="button"
+              onClick={() =>
+                printElement('staff-dossier-print-area', {
+                  title: `Staff_Dossier_${staff.empId}_THE_LEADERS_ACADEMY`,
+                })
+              }
+              className="px-3 py-1.5 text-xs font-semibold text-gray-700 bg-gray-100 hover:bg-gray-200 border border-gray-200 rounded-lg flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
+              title="Print staff profile dossier"
             >
-              <Printer className="w-3.5 h-3.5" />
+              <Printer className="w-3.5 h-3.5 text-gray-700" />
               <span>Print Profile</span>
             </button>
           </div>

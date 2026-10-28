@@ -86,7 +86,7 @@ export const OnboardStaffModal: React.FC<OnboardStaffModalProps> = ({
     e.preventDefault();
     if (!name || !empId || !phone) return;
 
-    const generatedEmail = email || `${name.toLowerCase().replace(/[^a-z0-9]/g, '.')}@learner.edu.in`;
+    const generatedEmail = email || `${name.toLowerCase().replace(/[^a-z0-9]/g, '.')}@leadersacademy.edu.in`;
 
     onAddStaff({
       empId,

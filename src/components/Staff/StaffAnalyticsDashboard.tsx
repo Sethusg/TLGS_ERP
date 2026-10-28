@@ -27,6 +27,7 @@ import {
   Award,
 } from 'lucide-react';
 import { Staff, LeaveRequest } from '../../types';
+import { printElement } from '../../utils/printDocument';
 
 interface StaffAnalyticsDashboardProps {
   staffList: Staff[];
@@ -221,7 +222,7 @@ export const StaffAnalyticsDashboard: React.FC<StaffAnalyticsDashboardProps> = (
   }, [leaveUtilizationData]);
 
   return (
-    <div className="space-y-6">
+    <div id="staff-analytics-print-area" className="space-y-6">
       {/* KPI Overview Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100/80">
@@ -315,10 +316,17 @@ export const StaffAnalyticsDashboard: React.FC<StaffAnalyticsDashboardProps> = (
         </div>
 
         <button
-          onClick={() => window.print()}
-          className="px-3.5 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-800 text-xs font-semibold rounded-lg flex items-center gap-1.5 transition-colors self-end sm:self-auto"
+          type="button"
+          onClick={() =>
+            printElement('staff-analytics-print-area', {
+              title: 'Staff_Analytics_Report_THE_LEADERS_ACADEMY',
+              landscape: true,
+            })
+          }
+          className="px-3.5 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-800 text-xs font-semibold rounded-lg flex items-center gap-1.5 transition-colors self-end sm:self-auto cursor-pointer border border-gray-200 shadow-2xs"
+          title="Print workforce analytics report"
         >
-          <Printer className="w-3.5 h-3.5" />
+          <Printer className="w-3.5 h-3.5 text-gray-700" />
           <span>Print Analytics Report</span>
         </button>
       </div>
@@ -414,7 +422,7 @@ export const StaffAnalyticsDashboard: React.FC<StaffAnalyticsDashboardProps> = (
                   outerRadius={80}
                   paddingAngle={4}
                   dataKey="value"
-                  label={({ name, percentage }) => `${name} (${percentage}%)`}
+                  label={(entry: any) => `${entry.name} (${entry.percentage}%)`}
                 >
                   {genderData.map((entry) => (
                     <Cell

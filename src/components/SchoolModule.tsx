@@ -10,23 +10,44 @@ import {
   BookMarked,
   CheckCircle2,
   Bell,
+  Edit,
+  Trash2,
+  AlertTriangle,
 } from 'lucide-react';
-import { Circular, LibraryBook } from '../types';
+import { Circular, LibraryBook, NewsItem } from '../types';
+import { NewsAndEventsModule } from './NewsAndEventsModule';
+
+export interface CalendarEvent {
+  id: string;
+  date: string;
+  title: string;
+  desc: string;
+  badge: string;
+  color: string;
+}
 
 interface SchoolModuleProps {
   circulars: Circular[];
   libraryBooks: LibraryBook[];
+  newsItems: NewsItem[];
   subItem?: string;
   onAddCircular: (circ: Omit<Circular, 'id'>) => void;
   onIssueBook: (bookId: string) => void;
+  onAddNews: (item: Omit<NewsItem, 'id'>) => void;
+  onUpdateNews: (item: NewsItem) => void;
+  onDeleteNews: (id: string) => void;
 }
 
 export const SchoolModule: React.FC<SchoolModuleProps> = ({
   circulars,
   libraryBooks,
+  newsItems,
   subItem = 'school-calendar',
   onAddCircular,
   onIssueBook,
+  onAddNews,
+  onUpdateNews,
+  onDeleteNews,
 }) => {
   const [activeTab, setActiveTab] = useState<'calendar' | 'circulars' | 'library' | 'news'>(() => {
     if (subItem === 'school-circulars') return 'circulars';
@@ -34,6 +55,49 @@ export const SchoolModule: React.FC<SchoolModuleProps> = ({
     if (subItem === 'school-news' || subItem === 'school-events') return 'news';
     return 'calendar';
   });
+
+  // Academic Calendar State & CRUD
+  const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[]>([
+    {
+      id: 'cal-1',
+      date: '23 OCT 2026 (TODAY)',
+      title: 'Inter-House Science Exhibition & Robotics Fair',
+      desc: 'Senior student project presentations in Physics & Computer Labs.',
+      badge: 'Happening Today',
+      color: 'border-pink-200 bg-pink-50/40 text-pink-700',
+    },
+    {
+      id: 'cal-2',
+      date: '10 NOV 2026',
+      title: 'CBSE Term-1 Mid-Term Assessments Begin',
+      desc: 'Theory papers for Classes 9 to 12. Hall tickets mandatory.',
+      badge: 'Exam Milestone',
+      color: 'border-blue-200 bg-blue-50/40 text-blue-700',
+    },
+    {
+      id: 'cal-3',
+      date: '27-28 NOV 2026',
+      title: 'Annual Inter-School Cultural Fest "SPECTRUM 2026"',
+      desc: 'Hosting 42 schools across Karnataka in arts, debate, and music.',
+      badge: 'Major Campus Event',
+      color: 'border-amber-200 bg-amber-50/40 text-amber-700',
+    },
+    {
+      id: 'cal-4',
+      date: '24 DEC 2026 - 02 JAN 2027',
+      title: 'Winter Vacation & Term Break',
+      desc: 'Campus reopens on 03 January 2027 for Term-2 classes.',
+      badge: 'Vacation',
+      color: 'border-emerald-200 bg-emerald-50/40 text-emerald-700',
+    },
+  ]);
+
+  const [showCalendarModal, setShowCalendarModal] = useState(false);
+  const [editingCalendarEvent, setEditingCalendarEvent] = useState<CalendarEvent | null>(null);
+  const [calDate, setCalDate] = useState('');
+  const [calTitle, setCalTitle] = useState('');
+  const [calDesc, setCalDesc] = useState('');
+  const [calBadge, setCalBadge] = useState('Campus Event');
 
   // Circular publisher form
   const [showAddCircular, setShowAddCircular] = useState(false);
@@ -44,6 +108,57 @@ export const SchoolModule: React.FC<SchoolModuleProps> = ({
 
   const [bookSearch, setBookSearch] = useState('');
 
+  // Handlers for Calendar CRUD
+  const handleOpenAddCalendar = () => {
+    setEditingCalendarEvent(null);
+    setCalDate('15 NOV 2026');
+    setCalTitle('');
+    setCalDesc('');
+    setCalBadge('Campus Event');
+    setShowCalendarModal(true);
+  };
+
+  const handleOpenEditCalendar = (ev: CalendarEvent) => {
+    setEditingCalendarEvent(ev);
+    setCalDate(ev.date);
+    setCalTitle(ev.title);
+    setCalDesc(ev.desc);
+    setCalBadge(ev.badge);
+    setShowCalendarModal(true);
+  };
+
+  const handleSaveCalendarEvent = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!calTitle || !calDate) return;
+
+    if (editingCalendarEvent) {
+      setCalendarEvents((prev) =>
+        prev.map((item) =>
+          item.id === editingCalendarEvent.id
+            ? { ...item, date: calDate, title: calTitle, desc: calDesc, badge: calBadge }
+            : item
+        )
+      );
+    } else {
+      const newEv: CalendarEvent = {
+        id: `cal-${Date.now()}`,
+        date: calDate,
+        title: calTitle,
+        desc: calDesc,
+        badge: calBadge,
+        color: 'border-indigo-200 bg-indigo-50/40 text-indigo-700',
+      };
+      setCalendarEvents((prev) => [newEv, ...prev]);
+    }
+    setShowCalendarModal(false);
+  };
+
+  const handleDeleteCalendarEvent = (id: string) => {
+    if (window.confirm('Are you sure you want to delete this calendar event?')) {
+      setCalendarEvents((prev) => prev.filter((item) => item.id !== id));
+    }
+  };
+
   const handlePublishCircular = (e: React.FormEvent) => {
     e.preventDefault();
     if (!circTitle || !circSummary) return;
@@ -51,7 +166,7 @@ export const SchoolModule: React.FC<SchoolModuleProps> = ({
     onAddCircular({
       referenceNo: `TLA/CIR/2026-27/0${Math.floor(90 + Math.random() * 90)}`,
       title: circTitle,
-      date: '2026-10-23',
+      date: '2026-10-24',
       targetAudience: circAudience,
       category: circCategory,
       summary: circSummary,
@@ -129,70 +244,134 @@ export const SchoolModule: React.FC<SchoolModuleProps> = ({
           <div className="flex items-center justify-between border-b border-gray-100 pb-3">
             <div>
               <h3 className="text-base font-bold text-gray-900">Academic Year Schedule 2026 - 2027</h3>
-              <p className="text-xs text-gray-500">Scheduled examinations, events, and board milestones</p>
+              <p className="text-xs text-gray-500">Scheduled examinations, events, and board milestones (Create, Edit & Delete enabled)</p>
             </div>
-            <div className="text-xs font-semibold px-3 py-1 bg-indigo-50 text-indigo-700 rounded-md">
-              Current Term: Term 1 (Autumn)
+            <div className="flex items-center gap-3">
+              <span className="text-xs font-semibold px-3 py-1 bg-indigo-50 text-indigo-700 rounded-md">
+                Current Term: Term 1 (Autumn)
+              </span>
+              <button
+                onClick={handleOpenAddCalendar}
+                className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-lg shadow-2xs flex items-center gap-1.5 cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Add Event</span>
+              </button>
             </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {[
-              {
-                date: '23 OCT 2026 (TODAY)',
-                title: 'Inter-House Science Exhibition & Robotics Fair',
-                desc: 'Senior student project presentations in Physics & Computer Labs.',
-                badge: 'Happening Today',
-                color: 'border-pink-200 bg-pink-50/40 text-pink-700',
-              },
-              {
-                date: '10 NOV 2026',
-                title: 'CBSE Term-1 Mid-Term Assessments Begin',
-                desc: 'Theory papers for Classes 9 to 12. Hall tickets mandatory.',
-                badge: 'Exam Milestone',
-                color: 'border-blue-200 bg-blue-50/40 text-blue-700',
-              },
-              {
-                date: '27-28 NOV 2026',
-                title: 'Annual Inter-School Cultural Fest "SPECTRUM 2026"',
-                desc: 'Hosting 42 schools across Karnataka in arts, debate, and music.',
-                badge: 'Major Campus Event',
-                color: 'border-amber-200 bg-amber-50/40 text-amber-700',
-              },
-              {
-                date: '24 DEC 2026 - 02 JAN 2027',
-                title: 'Winter Vacation & Term Break',
-                desc: 'Campus reopens on 03 January 2027 for Term-2 classes.',
-                badge: 'Vacation',
-                color: 'border-emerald-200 bg-emerald-50/40 text-emerald-700',
-              },
-              {
-                date: '15 JAN 2027',
-                title: 'CBSE Class 10 & 12 Board Practical Examinations',
-                desc: 'External examiners appointed by CBSE regional office.',
-                badge: 'Statutory Board Exam',
-                color: 'border-purple-200 bg-purple-50/40 text-purple-700',
-              },
-              {
-                date: '26 JAN 2027',
-                title: '78th Republic Day Parade & Flag Hoisting',
-                desc: 'NCC cadets & school brass band guard of honor at 08:00 AM.',
-                badge: 'National Holiday',
-                color: 'border-orange-200 bg-orange-50/40 text-orange-700',
-              },
-            ].map((ev, idx) => (
-              <div key={idx} className={`p-4 border rounded-xl ${ev.color} space-y-2`}>
+            {calendarEvents.map((ev) => (
+              <div key={ev.id} className={`p-4 border rounded-xl ${ev.color} space-y-2 relative group`}>
                 <div className="flex items-center justify-between">
                   <span className="text-[11px] font-mono font-bold">{ev.date}</span>
-                  <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-white shadow-2xs">
-                    {ev.badge}
-                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-white shadow-2xs">
+                      {ev.badge}
+                    </span>
+                    <button
+                      onClick={() => handleOpenEditCalendar(ev)}
+                      className="p-1 text-gray-600 hover:text-blue-600 bg-white/80 hover:bg-white rounded shadow-2xs transition-colors"
+                      title="Edit Event"
+                    >
+                      <Edit className="w-3 h-3" />
+                    </button>
+                    <button
+                      onClick={() => handleDeleteCalendarEvent(ev.id)}
+                      className="p-1 text-gray-600 hover:text-rose-600 bg-white/80 hover:bg-white rounded shadow-2xs transition-colors"
+                      title="Delete Event"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  </div>
                 </div>
                 <h4 className="text-sm font-bold text-gray-900">{ev.title}</h4>
                 <p className="text-xs text-gray-600">{ev.desc}</p>
               </div>
             ))}
           </div>
+
+          {/* Add/Edit Calendar Event Modal */}
+          {showCalendarModal && (
+            <div className="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+              <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl border border-gray-200">
+                <h3 className="text-base font-bold text-gray-900">
+                  {editingCalendarEvent ? 'Edit Academic Calendar Event' : 'Add New Academic Calendar Event'}
+                </h3>
+                <form
+                  onSubmit={handleSaveCalendarEvent}
+                  className="mt-4 space-y-3"
+                >
+                  <div>
+                    <label className="text-xs font-semibold text-gray-700 block mb-1">Date / Period *</label>
+                    <input
+                      type="text"
+                      required
+                      value={calDate}
+                      onChange={(e) => setCalDate(e.target.value)}
+                      placeholder="e.g. 15 NOV 2026"
+                      className="w-full px-3 py-1.5 text-xs border border-gray-300 rounded-md focus:border-blue-600 focus:outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-semibold text-gray-700 block mb-1">Event Title *</label>
+                    <input
+                      type="text"
+                      required
+                      value={calTitle}
+                      onChange={(e) => setCalTitle(e.target.value)}
+                      placeholder="e.g. Annual Sports Day Finals"
+                      className="w-full px-3 py-1.5 text-xs border border-gray-300 rounded-md focus:border-blue-600 focus:outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-semibold text-gray-700 block mb-1">Badge Type</label>
+                    <select
+                      value={calBadge}
+                      onChange={(e) => setCalBadge(e.target.value)}
+                      className="w-full px-3 py-1.5 text-xs border border-gray-300 rounded-md focus:outline-none"
+                    >
+                      <option value="Happening Today">Happening Today</option>
+                      <option value="Exam Milestone">Exam Milestone</option>
+                      <option value="Major Campus Event">Major Campus Event</option>
+                      <option value="Vacation">Vacation</option>
+                      <option value="Statutory Board Exam">Statutory Board Exam</option>
+                      <option value="National Holiday">National Holiday</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-semibold text-gray-700 block mb-1">Description</label>
+                    <textarea
+                      rows={3}
+                      value={calDesc}
+                      onChange={(e) => setCalDesc(e.target.value)}
+                      placeholder="Brief details about the event..."
+                      className="w-full px-3 py-1.5 text-xs border border-gray-300 rounded-md focus:border-blue-600 focus:outline-none"
+                    />
+                  </div>
+
+                  <div className="flex justify-end gap-2 pt-3 border-t border-gray-100">
+                    <button
+                      type="button"
+                      onClick={() => setShowCalendarModal(false)}
+                      className="px-3.5 py-1.5 text-xs text-gray-600 hover:bg-gray-100 rounded-md"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="px-4 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-md"
+                    >
+                      {editingCalendarEvent ? 'Update Event' : 'Save Event'}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -206,7 +385,7 @@ export const SchoolModule: React.FC<SchoolModuleProps> = ({
             </div>
             <button
               onClick={() => setShowAddCircular(true)}
-              className="px-3.5 py-2 bg-[#e91e63] hover:bg-[#d81b60] text-white text-xs font-semibold rounded-lg shadow-2xs flex items-center gap-1.5"
+              className="px-3.5 py-2 bg-[#e91e63] hover:bg-[#d81b60] text-white text-xs font-semibold rounded-lg shadow-2xs flex items-center gap-1.5 cursor-pointer"
             >
               <Plus className="w-3.5 h-3.5" />
               <span>Publish New Circular</span>
@@ -237,7 +416,7 @@ export const SchoolModule: React.FC<SchoolModuleProps> = ({
                 {circ.attachmentName && (
                   <button
                     onClick={() => alert(`Simulated download of ${circ.attachmentName}`)}
-                    className="px-3 py-1.5 bg-gray-50 hover:bg-gray-100 border border-gray-200 text-gray-700 text-xs font-semibold rounded-lg flex items-center gap-1.5 shrink-0 transition-colors"
+                    className="px-3 py-1.5 bg-gray-50 hover:bg-gray-100 border border-gray-200 text-gray-700 text-xs font-semibold rounded-lg flex items-center gap-1.5 shrink-0 transition-colors cursor-pointer"
                   >
                     <Download className="w-3.5 h-3.5 text-pink-600" />
                     <span>{circ.attachmentName}</span>
@@ -386,7 +565,7 @@ export const SchoolModule: React.FC<SchoolModuleProps> = ({
                       <button
                         onClick={() => onIssueBook(b.id)}
                         disabled={b.availableCopies <= 0}
-                        className={`px-2.5 py-1 text-xs font-semibold rounded ${
+                        className={`px-2.5 py-1 text-xs font-semibold rounded cursor-pointer ${
                           b.availableCopies > 0
                             ? 'text-indigo-600 hover:bg-indigo-50'
                             : 'text-gray-400 cursor-not-allowed'
@@ -405,29 +584,12 @@ export const SchoolModule: React.FC<SchoolModuleProps> = ({
 
       {/* VIEW: NEWS & EVENTS */}
       {activeTab === 'news' && (
-        <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100/80 space-y-4">
-          <h3 className="text-base font-bold text-gray-900">Campus News & Achievements</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="p-4 border border-gray-200 rounded-xl space-y-2">
-              <span className="text-[10px] font-bold text-pink-600 uppercase">Sports Excellence</span>
-              <h4 className="font-bold text-sm text-gray-900">
-                Learner&apos;s Academy U-16 Football Squad Wins District Championship
-              </h4>
-              <p className="text-xs text-gray-600">
-                Our squad scored 3-1 against Greenwood High in the final match held at Kanteerava Stadium.
-              </p>
-            </div>
-            <div className="p-4 border border-gray-200 rounded-xl space-y-2">
-              <span className="text-[10px] font-bold text-indigo-600 uppercase">STEM Innovation</span>
-              <h4 className="font-bold text-sm text-gray-900">
-                Atal Tinkering Lab Robotics Team Qualifies for National AI Olympiad
-              </h4>
-              <p className="text-xs text-gray-600">
-                Grade 10 students presented an automated agricultural soil moisture probe and won 1st prize.
-              </p>
-            </div>
-          </div>
-        </div>
+        <NewsAndEventsModule
+          newsItems={newsItems}
+          onAddNews={onAddNews}
+          onUpdateNews={onUpdateNews}
+          onDeleteNews={onDeleteNews}
+        />
       )}
     </div>
   );

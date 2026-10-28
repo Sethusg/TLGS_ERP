@@ -1,6 +1,6 @@
 {
-  "name": "EduNiv - Advanced School Management System",
-  "description": "Enterprise CBSE school ERP management system featuring student information, staff leave tracking, markcharts, fees, transport tracking, LMS, and transfer certificate management.",
+  "name": "TLGS - Advanced School Management System",
+  "description": "Enterprise TLGS school ERP management system featuring student information, staff leave tracking, markcharts, fees, transport tracking, LMS, and transfer certificate management.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

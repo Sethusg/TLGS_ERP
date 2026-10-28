@@ -3,8 +3,24 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
-import { NavSection, Student, Staff, LeaveRequest, CRMLead, BirthdayItem, Circular, FeeReceipt, TransferCertificate, SchoolAsset } from './types';
+import React, { useState, useEffect } from 'react';
+import {
+  NavSection,
+  Student,
+  Staff,
+  LeaveRequest,
+  CRMLead,
+  BirthdayItem,
+  Circular,
+  FeeReceipt,
+  TransferCertificate,
+  SchoolAsset,
+  SystemUser,
+  SchoolClass,
+  SchoolSubject,
+  TimetableEntry,
+  NewsItem,
+} from './types';
 import {
   INITIAL_STUDENTS,
   INITIAL_STAFF,
@@ -18,7 +34,14 @@ import {
   INITIAL_EXAMS,
   INITIAL_LIBRARY_BOOKS,
   INITIAL_ASSETS,
+  INITIAL_USERS,
+  INITIAL_CLASSES,
+  INITIAL_SUBJECTS,
+  INITIAL_TIMETABLES,
+  INITIAL_NEWS,
 } from './data/mockData';
+import { AdminManagementHub } from './components/AdminManagementHub';
+
 import { HeaderNav } from './components/HeaderNav';
 import { SubBar } from './components/SubBar';
 import { HomeDashboard } from './components/HomeDashboard';
@@ -33,10 +56,86 @@ import { ContactModule } from './components/ContactModule';
 import { LMSAndAcademicsModule } from './components/LMSAndAcademicsModule';
 import { AssetSuppliesModule } from './components/AssetSuppliesModule';
 import { AdminSettingsModule } from './components/AdminSettingsModule';
+import { IDCardPrinterModule } from './components/IDCardPrinterModule';
+import { CanteenModule } from './components/CanteenModule';
 import { StudentProfileModal } from './components/Modals/StudentProfileModal';
 import { QuickActionModal } from './components/Modals/QuickActionModal';
+import { NotificationCenter } from './components/Common/NotificationCenter';
+import { CameraQRScannerModal } from './components/Common/CameraQRScannerModal';
+import { LoginScreen } from './components/LoginScreen';
+import { SessionWarningModal } from './components/Modals/SessionWarningModal';
 
 export default function App() {
+  const [isLoggedIn, setIsLoggedIn] = useState(true);
+  const [logoutReason, setLogoutReason] = useState<string | undefined>(undefined);
+  const [sessionSecondsRemaining, setSessionSecondsRemaining] = useState(900); // 15 minutes session timer
+  const [isWarningOpen, setIsWarningOpen] = useState(false);
+
+  // Inactivity & Session Timer Effect
+  useEffect(() => {
+    if (!isLoggedIn) return;
+
+    const timer = setInterval(() => {
+      setSessionSecondsRemaining((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          setIsLoggedIn(false);
+          setLogoutReason('Session expired due to 15 minutes of inactivity.');
+          setIsWarningOpen(false);
+          return 0;
+        }
+        if (prev === 61) {
+          setIsWarningOpen(true);
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    const resetTimer = () => {
+      if (isLoggedIn && !isWarningOpen) {
+        setSessionSecondsRemaining(900);
+      }
+    };
+
+    window.addEventListener('mousemove', resetTimer);
+    window.addEventListener('keydown', resetTimer);
+    window.addEventListener('click', resetTimer);
+
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener('mousemove', resetTimer);
+      window.removeEventListener('keydown', resetTimer);
+      window.removeEventListener('click', resetTimer);
+    };
+  }, [isLoggedIn, isWarningOpen]);
+
+  const handleLogout = () => {
+    setIsLoggedIn(false);
+    setLogoutReason('Logged out successfully by user.');
+    setIsWarningOpen(false);
+  };
+
+  const handleExtendSession = () => {
+    setSessionSecondsRemaining(900);
+    setIsWarningOpen(false);
+  };
+
+  const [currentUserRole, setCurrentUserRole] = useState<string>('admin');
+
+  const handleLoginSuccess = (username: string, role: string) => {
+    setIsLoggedIn(true);
+    setCurrentUserRole(role);
+    setSessionSecondsRemaining(900);
+    setLogoutReason(undefined);
+    setIsWarningOpen(false);
+    if (role === 'cashier') {
+      setCurrentSection('CANTEEN');
+      setActiveSubItem('canteen-pos');
+    } else {
+      setCurrentSection('HOME');
+    }
+  };
+
   const [currentSection, setCurrentSection] = useState<NavSection>('HOME');
   const [activeSubItem, setActiveSubItem] = useState<string | undefined>(undefined);
 
@@ -51,10 +150,71 @@ export default function App() {
   const [tcRecords, setTcRecords] = useState<TransferCertificate[]>(INITIAL_TC_RECORDS);
   const [libraryBooks, setLibraryBooks] = useState(INITIAL_LIBRARY_BOOKS);
   const [assets, setAssets] = useState<SchoolAsset[]>(INITIAL_ASSETS);
+  const [newsItems, setNewsItems] = useState<NewsItem[]>(INITIAL_NEWS);
+  const [users, setUsers] = useState<SystemUser[]>(INITIAL_USERS);
+  const [classesList, setClassesList] = useState<SchoolClass[]>(INITIAL_CLASSES);
+  const [subjectsList, setSubjectsList] = useState<SchoolSubject[]>(INITIAL_SUBJECTS);
+  const [timetablesList, setTimetablesList] = useState<TimetableEntry[]>(INITIAL_TIMETABLES);
+
+  // User Management Handlers
+  const handleAddUser = (user: Omit<SystemUser, 'id'>) => {
+    setUsers((prev) => [{ ...user, id: `usr-${Date.now()}` }, ...prev]);
+  };
+  const handleUpdateUser = (updated: SystemUser) => {
+    setUsers((prev) => prev.map((u) => (u.id === updated.id ? updated : u)));
+  };
+  const handleDeleteUser = (id: string) => {
+    setUsers((prev) => prev.filter((u) => u.id !== id));
+  };
+  const handleToggleUserStatus = (id: string) => {
+    setUsers((prev) =>
+      prev.map((u) => (u.id === id ? { ...u, status: u.status === 'Active' ? 'Inactive' : 'Active' } : u))
+    );
+  };
+  const handleResetPassword = (id: string) => {
+    console.log(`Password reset triggered for user ${id}`);
+  };
+
+  // Class Management Handlers
+  const handleAddClass = (cls: Omit<SchoolClass, 'id'>) => {
+    setClassesList((prev) => [{ ...cls, id: `cls-${Date.now()}` }, ...prev]);
+  };
+  const handleUpdateClass = (updated: SchoolClass) => {
+    setClassesList((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
+  };
+  const handleDeleteClass = (id: string) => {
+    setClassesList((prev) => prev.filter((c) => c.id !== id));
+  };
+
+  // Subject Management Handlers
+  const handleAddSubject = (sub: Omit<SchoolSubject, 'id'>) => {
+    setSubjectsList((prev) => [{ ...sub, id: `sub-${Date.now()}` }, ...prev]);
+  };
+  const handleUpdateSubject = (updated: SchoolSubject) => {
+    setSubjectsList((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
+  };
+  const handleDeleteSubject = (id: string) => {
+    setSubjectsList((prev) => prev.filter((s) => s.id !== id));
+  };
+
+  // Timetable Management Handlers
+  const handleAddTimetable = (tt: Omit<TimetableEntry, 'id'>) => {
+    setTimetablesList((prev) => [{ ...tt, id: `tt-${Date.now()}` }, ...prev]);
+  };
+  const handleUpdateTimetable = (updated: TimetableEntry) => {
+    setTimetablesList((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
+  };
+  const handleDeleteTimetable = (id: string) => {
+    setTimetablesList((prev) => prev.filter((t) => t.id !== id));
+  };
+
 
   // UI States
   const [selectedStudentForModal, setSelectedStudentForModal] = useState<Student | null>(null);
   const [isQuickActionOpen, setIsQuickActionOpen] = useState(false);
+  const [isNotificationOpen, setIsNotificationOpen] = useState(false);
+  const [isCameraScannerOpen, setIsCameraScannerOpen] = useState(false);
+  const [cameraScannerMode, setCameraScannerMode] = useState<'all' | 'transport' | 'asset' | 'staff'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [isRefreshing, setIsRefreshing] = useState(false);
 
@@ -216,22 +376,107 @@ export default function App() {
     setAssets((prev) => [newAsset, ...prev]);
   };
 
+  // News & Events Handlers
+  const handleAddNews = (item: Omit<NewsItem, 'id'>) => {
+    const newItem: NewsItem = {
+      ...item,
+      id: `news-${Date.now()}`,
+    };
+    setNewsItems((prev) => [newItem, ...prev]);
+  };
+
+  const handleUpdateNews = (updated: NewsItem) => {
+    setNewsItems((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
+  };
+
+  const handleDeleteNews = (id: string) => {
+    setNewsItems((prev) => prev.filter((item) => item.id !== id));
+  };
+
+  // Full System State Restore Handler
+  const handleRestoreState = (importedData: any) => {
+    try {
+      if (importedData.students) setStudents(importedData.students);
+      if (importedData.staffList) setStaffList(importedData.staffList);
+      if (importedData.leaveRequests) setLeaveRequests(importedData.leaveRequests);
+      if (importedData.crmLeads) setCrmLeads(importedData.crmLeads);
+      if (importedData.birthdays) setBirthdays(importedData.birthdays);
+      if (importedData.circulars) setCirculars(importedData.circulars);
+      if (importedData.feeReceipts) setFeeReceipts(importedData.feeReceipts);
+      if (importedData.tcRecords) setTcRecords(importedData.tcRecords);
+      if (importedData.libraryBooks) setLibraryBooks(importedData.libraryBooks);
+      if (importedData.assets) setAssets(importedData.assets);
+      return true;
+    } catch (e) {
+      console.error('Failed to restore data', e);
+      return false;
+    }
+  };
+
+  // Reset to initial demo database
+  const handleResetToDemoData = () => {
+    setStudents(INITIAL_STUDENTS);
+    setStaffList(INITIAL_STAFF);
+    setLeaveRequests(INITIAL_LEAVE_REQUESTS);
+    setCrmLeads(INITIAL_CRM_LEADS);
+    setBirthdays(INITIAL_BIRTHDAYS);
+    setCirculars(INITIAL_CIRCULARS);
+    setFeeReceipts(INITIAL_FEE_RECEIPTS);
+    setTcRecords(INITIAL_TC_RECORDS);
+    setLibraryBooks(INITIAL_LIBRARY_BOOKS);
+    setAssets(INITIAL_ASSETS);
+  };
+
+  // QR Rapid Check-In Handlers
+  const handleStudentBusCheckIn = (studentId: string, routeId: string) => {
+    console.log(`Student ${studentId} boarded bus route ${routeId}`);
+  };
+
+  const handleAssetCheckInOut = (assetCode: string, action: 'checkin' | 'checkout') => {
+    setAssets((prev) =>
+      prev.map((a) =>
+        a.assetCode === assetCode
+          ? {
+              ...a,
+              condition: 'Excellent',
+              assignedTo:
+                action === 'checkout'
+                  ? 'Dr. Rajesh Sharma (Faculty)'
+                  : 'Central Laboratory Locker',
+            }
+          : a
+      )
+    );
+  };
+
   // Subtitle resolver for SubBar
   const getSubTitle = () => {
     if (currentSection === 'HOME') return undefined;
     return currentSection;
   };
 
+  if (!isLoggedIn) {
+    return (
+      <LoginScreen
+        onLoginSuccess={handleLoginSuccess}
+        logoutReason={logoutReason}
+      />
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-[#f1f3f7] text-gray-900 flex flex-col antialiased selection:bg-pink-100 selection:text-pink-900">
+    <div className="min-h-screen bg-[#f8fafc] text-slate-900 flex flex-col antialiased selection:bg-amber-100 selection:text-amber-900">
       {/* Top Navigation Bar with exact screenshots styling */}
       <HeaderNav
         currentSection={currentSection}
         onSelectSection={handleNavigate}
         activeSubItem={activeSubItem}
+        onLogout={handleLogout}
+        sessionSecondsRemaining={sessionSecondsRemaining}
+        userRole={currentUserRole}
       />
 
-      {/* Sub-bar with EduNiv, search, and refresh */}
+      {/* Sub-bar with TLGS, search, notifications, QR scanner, and refresh */}
       <SubBar
         currentSection={currentSection}
         activeSubTitle={getSubTitle()}
@@ -244,6 +489,12 @@ export default function App() {
           if (q.trim().length > 0 && currentSection === 'HOME') {
             setCurrentSection('STUDENT');
           }
+        }}
+        unreadNotifCount={leaveRequests.filter((r) => r.status === 'Pending').length + 1}
+        onOpenNotifications={() => setIsNotificationOpen(true)}
+        onOpenQRScanner={() => {
+          setCameraScannerMode('all');
+          setIsCameraScannerOpen(true);
         }}
       />
 
@@ -323,6 +574,10 @@ export default function App() {
           <TransportModule
             busRoutes={INITIAL_BUS_ROUTES}
             subItem={activeSubItem}
+            onOpenQRScanner={() => {
+              setCameraScannerMode('transport');
+              setIsCameraScannerOpen(true);
+            }}
           />
         )}
 
@@ -330,9 +585,13 @@ export default function App() {
           <SchoolModule
             circulars={circulars}
             libraryBooks={libraryBooks}
+            newsItems={newsItems}
             subItem={activeSubItem}
             onAddCircular={handleAddCircular}
             onIssueBook={handleIssueBook}
+            onAddNews={handleAddNews}
+            onUpdateNews={handleUpdateNews}
+            onDeleteNews={handleDeleteNews}
           />
         )}
 
@@ -354,27 +613,85 @@ export default function App() {
           />
         )}
 
+        {currentSection === 'ID_CARDS' && (
+          <IDCardPrinterModule
+            students={students}
+            staffList={staffList}
+            subItem={activeSubItem}
+          />
+        )}
+
+        {currentSection === 'CANTEEN' && (
+          <CanteenModule subItem={activeSubItem} />
+        )}
+
         {(currentSection === 'ASSET' || currentSection === 'SUPPLIES') && (
           <AssetSuppliesModule
             assets={assets}
             subItem={activeSubItem || (currentSection === 'SUPPLIES' ? 'supplies' : 'asset-view')}
             onAddAsset={handleAddAsset}
+            onOpenQRScanner={() => {
+              setCameraScannerMode('asset');
+              setIsCameraScannerOpen(true);
+            }}
           />
         )}
 
-        {(currentSection === 'ADMIN' || currentSection === 'SETTINGS') && (
-          <AdminSettingsModule
-            initialTab={currentSection === 'SETTINGS' ? 'settings' : 'roles'}
+        {currentSection === 'ADMIN' && (
+          <AdminManagementHub
+            users={users}
+            onAddUser={handleAddUser}
+            onUpdateUser={handleUpdateUser}
+            onDeleteUser={handleDeleteUser}
+            onToggleUserStatus={handleToggleUserStatus}
+            onResetPassword={handleResetPassword}
+            classes={classesList}
+            onAddClass={handleAddClass}
+            onUpdateClass={handleUpdateClass}
+            onDeleteClass={handleDeleteClass}
+            subjects={subjectsList}
+            onAddSubject={handleAddSubject}
+            onUpdateSubject={handleUpdateSubject}
+            onDeleteSubject={handleDeleteSubject}
+            timetables={timetablesList}
+            onAddTimetable={handleAddTimetable}
+            onUpdateTimetable={handleUpdateTimetable}
+            onDeleteTimetable={handleDeleteTimetable}
           />
         )}
+
+        {currentSection === 'SETTINGS' && (
+          <AdminSettingsModule
+            initialTab={
+              activeSubItem === 'settings-backup' || activeSubItem === 'admin-backup'
+                ? 'backup'
+                : 'settings'
+            }
+            systemState={{
+              students,
+              staffList,
+              leaveRequests,
+              crmLeads,
+              birthdays,
+              circulars,
+              feeReceipts,
+              tcRecords,
+              libraryBooks,
+              assets,
+            }}
+            onRestoreState={handleRestoreState}
+            onResetToDemoData={handleResetToDemoData}
+          />
+        )}
+
       </main>
 
-      {/* Floating Action Button (Pink Pencil Button from Screenshot) */}
+      {/* Floating Action Button */}
       <aside className="fixed bottom-6 right-6 z-40">
         <button
           onClick={() => setIsQuickActionOpen(true)}
-          className="w-13 h-13 rounded-full bg-[#e91e63] hover:bg-[#d81b60] text-white flex items-center justify-center shadow-xl hover:scale-110 active:scale-95 transition-all focus:outline-none focus:ring-4 focus:ring-pink-300"
-          title="EduNiv Quick Action Dispatcher"
+          className="w-13 h-13 rounded-full bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white flex items-center justify-center shadow-xl shadow-blue-600/30 hover:scale-105 active:scale-95 transition-all focus:outline-none focus:ring-4 focus:ring-blue-300 cursor-pointer"
+          title="Quick Action Dispatcher"
           aria-label="Open quick actions"
         >
           <span className="text-xl">✎</span>
@@ -400,6 +717,36 @@ export default function App() {
         isOpen={isQuickActionOpen}
         onClose={() => setIsQuickActionOpen(false)}
         onSelectAction={handleNavigate}
+      />
+
+      {/* Automated Notification Center */}
+      <NotificationCenter
+        leaveRequests={leaveRequests}
+        staffList={staffList}
+        birthdays={birthdays}
+        onNavigate={handleNavigate}
+        isOpen={isNotificationOpen}
+        onClose={() => setIsNotificationOpen(false)}
+      />
+
+      {/* Camera QR Optical Scanner Modal */}
+      <CameraQRScannerModal
+        isOpen={isCameraScannerOpen}
+        onClose={() => setIsCameraScannerOpen(false)}
+        mode={cameraScannerMode}
+        students={students}
+        assets={assets}
+        busRoutes={INITIAL_BUS_ROUTES}
+        onStudentBusCheckIn={handleStudentBusCheckIn}
+        onAssetCheckInOut={handleAssetCheckInOut}
+      />
+
+      {/* Session Inactivity Warning Modal */}
+      <SessionWarningModal
+        isOpen={isWarningOpen}
+        secondsRemaining={sessionSecondsRemaining}
+        onExtendSession={handleExtendSession}
+        onLogoutNow={handleLogout}
       />
     </div>
   );

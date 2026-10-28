@@ -11,7 +11,13 @@ import {
   Circular,
   LibraryBook,
   SchoolAsset,
+  SystemUser,
+  SchoolClass,
+  SchoolSubject,
+  TimetableEntry,
+  NewsItem,
 } from '../types';
+
 
 export const INITIAL_STUDENTS: Student[] = [
   {
@@ -193,7 +199,7 @@ export const INITIAL_STAFF: Staff[] = [
     email: 'sethu.hw@gmail.com',
     gender: 'Male',
     dob: '1975-08-14',
-    address: 'A-102, Principal Residence, Learner Campus, Bengaluru',
+    address: 'A-102, Principal Residence, Leaders Academy Campus, Bengaluru',
     emergencyContact: {
       name: 'Radhika Ramanathan',
       relation: 'Spouse',
@@ -780,7 +786,7 @@ export const INITIAL_CIRCULARS: Circular[] = [
     date: '2026-10-18',
     targetAudience: 'All Students',
     category: 'Event',
-    summary: 'Learner Academy will be hosting 42 schools across Karnataka for SPECTRUM 2026 on Nov 27-28.',
+    summary: 'The Leaders Academy will be hosting 42 schools across Karnataka for SPECTRUM 2026 on Nov 27-28.',
     attachmentName: 'Spectrum_Fest_Brochure_2026.pdf',
   },
   {
@@ -911,6 +917,7 @@ export const INITIAL_EXAMS: ExamRecord[] = [
     percentage: 94.4,
     overallGrade: 'A1',
     rank: 2,
+    isFinalized: true,
     subjects: [
       { name: 'English Communicative', marksObtained: 92, maxMarks: 100, grade: 'A1' },
       { name: 'Mathematics (Standard)', marksObtained: 98, maxMarks: 100, grade: 'A1' },
@@ -932,12 +939,79 @@ export const INITIAL_EXAMS: ExamRecord[] = [
     percentage: 97.8,
     overallGrade: 'A1',
     rank: 1,
+    isFinalized: true,
     subjects: [
       { name: 'English Communicative', marksObtained: 97, maxMarks: 100, grade: 'A1' },
       { name: 'Mathematics (Standard)', marksObtained: 100, maxMarks: 100, grade: 'A1' },
       { name: 'Science & Tech', marksObtained: 98, maxMarks: 100, grade: 'A1' },
       { name: 'Social Science', marksObtained: 96, maxMarks: 100, grade: 'A1' },
       { name: 'Sanskrit', marksObtained: 98, maxMarks: 100, grade: 'A1' },
+    ],
+  },
+  {
+    id: 'ex-03',
+    studentId: 'std-103',
+    studentName: 'Rohan Mehra',
+    grade: 'Class 10',
+    section: 'A',
+    examName: 'Mid-Term Examination 2026',
+    term: 'Mid-Term',
+    totalMarks: 440,
+    maxTotal: 500,
+    percentage: 88.0,
+    overallGrade: 'A2',
+    rank: 3,
+    isFinalized: true,
+    subjects: [
+      { name: 'English Communicative', marksObtained: 88, maxMarks: 100, grade: 'A2' },
+      { name: 'Mathematics (Standard)', marksObtained: 90, maxMarks: 100, grade: 'A1' },
+      { name: 'Science & Tech', marksObtained: 87, maxMarks: 100, grade: 'A2' },
+      { name: 'Social Science', marksObtained: 85, maxMarks: 100, grade: 'A2' },
+      { name: 'Hindi Course A', marksObtained: 90, maxMarks: 100, grade: 'A1' },
+    ],
+  },
+  {
+    id: 'ex-04',
+    studentId: 'std-104',
+    studentName: 'Diya Patel',
+    grade: 'Class 10',
+    section: 'B',
+    examName: 'Mid-Term Examination 2026',
+    term: 'Mid-Term',
+    totalMarks: 455,
+    maxTotal: 500,
+    percentage: 91.0,
+    overallGrade: 'A1',
+    rank: 1,
+    isFinalized: true,
+    subjects: [
+      { name: 'English Communicative', marksObtained: 91, maxMarks: 100, grade: 'A1' },
+      { name: 'Mathematics (Standard)', marksObtained: 92, maxMarks: 100, grade: 'A1' },
+      { name: 'Science & Tech', marksObtained: 90, maxMarks: 100, grade: 'A1' },
+      { name: 'Social Science', marksObtained: 91, maxMarks: 100, grade: 'A1' },
+      { name: 'Hindi Course A', marksObtained: 91, maxMarks: 100, grade: 'A1' },
+    ],
+  },
+  {
+    id: 'ex-05',
+    studentId: 'std-105',
+    studentName: 'Kabir Malhotra',
+    grade: 'Class 10',
+    section: 'B',
+    examName: 'Mid-Term Examination 2026',
+    term: 'Mid-Term',
+    totalMarks: 380,
+    maxTotal: 500,
+    percentage: 76.0,
+    overallGrade: 'B1',
+    rank: 2,
+    isFinalized: false, // Unfinalized marks (draft mode, excluded from rankings until finalized)
+    subjects: [
+      { name: 'English Communicative', marksObtained: 75, maxMarks: 100, grade: 'B1' },
+      { name: 'Mathematics (Standard)', marksObtained: 80, maxMarks: 100, grade: 'B1' },
+      { name: 'Science & Tech', marksObtained: 74, maxMarks: 100, grade: 'B1' },
+      { name: 'Social Science', marksObtained: 76, maxMarks: 100, grade: 'B1' },
+      { name: 'Hindi Course A', marksObtained: 75, maxMarks: 100, grade: 'B1' },
     ],
   },
 ];
@@ -954,3 +1028,158 @@ export const INITIAL_ASSETS: SchoolAsset[] = [
   { id: 'ast-002', assetCode: 'AST-AV-2025-012', name: 'BenQ Interactive 75-inch 4K Smart Board', category: 'Audio/Visual', location: 'Classroom 10-A', purchaseDate: '2025-05-20', cost: 185000, condition: 'Excellent', assignedTo: 'Class 10A Teacher' },
   { id: 'ast-003', assetCode: 'AST-SCI-2023-088', name: 'Compound Binocular Microscope 1000x', category: 'Laboratory', location: 'Biology Laboratory', purchaseDate: '2023-08-10', cost: 22000, condition: 'Good', assignedTo: 'Biology HOD' },
 ];
+
+export const INITIAL_USERS: SystemUser[] = [
+  {
+    id: 'usr-001',
+    username: 'admin_sethu',
+    fullName: 'Dr. Sethu Ramanathan',
+    email: 'sethu.hw@gmail.com',
+    phone: '+91 98450 00001',
+    role: 'Super Admin',
+    status: 'Active',
+    lastLogin: '24 Oct 2026, 08:15 AM',
+  },
+  {
+    id: 'usr-002',
+    username: 'malini_math',
+    fullName: 'Malini Swaminathan',
+    email: 'malini.s@learner.edu.in',
+    phone: '+91 98450 11223',
+    role: 'Teacher',
+    status: 'Active',
+    lastLogin: '24 Oct 2026, 07:50 AM',
+  },
+  {
+    id: 'usr-003',
+    username: 'sridhar_accounts',
+    fullName: 'Sridhar Krishnan',
+    email: 'sridhar.k@learner.edu.in',
+    phone: '+91 98450 33221',
+    role: 'Accountant',
+    status: 'Active',
+    lastLogin: '23 Oct 2026, 05:20 PM',
+  },
+  {
+    id: 'usr-004',
+    username: 'ramesh_transport',
+    fullName: 'Ramesh Babu',
+    email: 'ramesh.transport@learner.edu.in',
+    phone: '+91 98450 77889',
+    role: 'Transport Staff',
+    status: 'Active',
+    lastLogin: '23 Oct 2026, 06:10 AM',
+  },
+];
+
+export const INITIAL_CLASSES: SchoolClass[] = [
+  {
+    id: 'cls-10',
+    gradeName: 'Class 10',
+    curriculum: 'CBSE',
+    sections: ['A', 'B', 'C'],
+    roomNo: 'Block A - Room 101',
+    classTeacher: 'Priyanka Sen',
+  },
+  {
+    id: 'cls-11',
+    gradeName: 'Class 11',
+    curriculum: 'CBSE',
+    sections: ['A (Science)', 'B (Commerce)'],
+    roomNo: 'Block B - Room 201',
+    classTeacher: 'Malini Swaminathan',
+  },
+  {
+    id: 'cls-12',
+    gradeName: 'Class 12',
+    curriculum: 'CBSE',
+    sections: ['A (Science)', 'B (Commerce)'],
+    roomNo: 'Block B - Room 202',
+    classTeacher: 'Rajeshwari Prasad',
+  },
+  {
+    id: 'cls-9',
+    gradeName: 'Class 9',
+    curriculum: 'CBSE',
+    sections: ['A', 'B', 'C'],
+    roomNo: 'Block A - Room 102',
+    classTeacher: 'Sunil Kumar V',
+  },
+];
+
+export const INITIAL_SUBJECTS: SchoolSubject[] = [
+  { id: 'sub-1', code: 'ENG101', name: 'English Core & Literature', type: 'Core', maxMarks: 100, gradeLevel: 'Class 10' },
+  { id: 'sub-2', code: 'MAT101', name: 'Mathematics (Standard)', type: 'Core', maxMarks: 100, gradeLevel: 'Class 10' },
+  { id: 'sub-3', code: 'SCI101', name: 'Science & Technology (PCB)', type: 'Core', maxMarks: 100, gradeLevel: 'Class 10' },
+  { id: 'sub-4', code: 'SOC101', name: 'Social Science (Hist/Geo/Civics)', type: 'Core', maxMarks: 100, gradeLevel: 'Class 10' },
+  { id: 'sub-5', code: 'HIN101', name: 'Hindi Course A', type: 'Core', maxMarks: 100, gradeLevel: 'Class 10' },
+];
+
+export const INITIAL_TIMETABLES: TimetableEntry[] = [
+  {
+    id: 'tt-1',
+    grade: 'Class 10',
+    section: 'A',
+    day: 'Monday',
+    periodNo: 1,
+    timeSlot: '09:00 AM - 09:45 AM',
+    subjectName: 'Mathematics (Standard)',
+    teacherName: 'Malini Swaminathan',
+  },
+  {
+    id: 'tt-2',
+    grade: 'Class 10',
+    section: 'A',
+    day: 'Monday',
+    periodNo: 2,
+    timeSlot: '09:45 AM - 10:30 AM',
+    subjectName: 'English Core & Literature',
+    teacherName: 'Priyanka Sen',
+  },
+  {
+    id: 'tt-3',
+    grade: 'Class 10',
+    section: 'A',
+    day: 'Monday',
+    periodNo: 3,
+    timeSlot: '10:45 AM - 11:30 AM',
+    subjectName: 'Science & Technology (PCB)',
+    teacherName: 'Rajeshwari Prasad',
+  },
+  {
+    id: 'tt-4',
+    grade: 'Class 10',
+    section: 'A',
+    day: 'Monday',
+    periodNo: 4,
+    timeSlot: '11:30 AM - 12:15 PM',
+    subjectName: 'Social Science (Hist/Geo/Civics)',
+    teacherName: 'Sunil Kumar V',
+  },
+];
+
+export const INITIAL_NEWS: NewsItem[] = [
+  {
+    id: 'news-1',
+    date: '22 Oct 2026',
+    title: 'The Leaders Academy U-16 Football Squad Wins District Championship',
+    category: 'Sports Excellence',
+    summary: 'Our squad scored 3-1 against Greenwood High in the final match held at Kanteerava Stadium.',
+  },
+  {
+    id: 'news-2',
+    date: '19 Oct 2026',
+    title: 'Atal Tinkering Lab Robotics Team Qualifies for National AI Olympiad',
+    category: 'STEM Innovation',
+    summary: 'Grade 10 students presented an automated agricultural soil moisture probe and won 1st prize.',
+  },
+  {
+    id: 'news-3',
+    date: '15 Oct 2026',
+    title: 'Inter-House Debate Competition Honors Excellence in Oratory',
+    category: 'Cultural Fest',
+    summary: 'Emerald House clinched the championship trophy after a riveting debate on artificial intelligence ethics.',
+  },
+];
+
+

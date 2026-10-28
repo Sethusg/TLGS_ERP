@@ -8,6 +8,7 @@ import {
   AlertCircle,
   FileDown,
   ShoppingBag,
+  Camera,
 } from 'lucide-react';
 import { SchoolAsset } from '../types';
 
@@ -15,12 +16,14 @@ interface AssetSuppliesProps {
   assets: SchoolAsset[];
   subItem?: string;
   onAddAsset: (asset: Omit<SchoolAsset, 'id'>) => void;
+  onOpenQRScanner?: () => void;
 }
 
 export const AssetSuppliesModule: React.FC<AssetSuppliesProps> = ({
   assets,
   subItem = 'asset-view',
   onAddAsset,
+  onOpenQRScanner,
 }) => {
   const [activeTab, setActiveTab] = useState<'assets' | 'supplies' | 'billing' | 'add'>(() => {
     if (subItem?.startsWith('supplies-billing')) return 'billing';
@@ -69,7 +72,7 @@ export const AssetSuppliesModule: React.FC<AssetSuppliesProps> = ({
       <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100/80 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-xl font-bold text-gray-900 tracking-tight flex items-center gap-2">
-            <Boxes className="w-6 h-6 text-[#1976d2]" />
+            <Boxes className="w-6 h-6 text-[#0097a7]" />
             <span>Institutional Asset & Supplies Inventory Store</span>
           </h2>
           <p className="text-xs text-gray-500 mt-0.5">
@@ -77,47 +80,110 @@ export const AssetSuppliesModule: React.FC<AssetSuppliesProps> = ({
           </p>
         </div>
 
-        <div className="flex items-center gap-1.5 p-1 bg-gray-100 rounded-lg text-xs font-medium">
-          <button
-            onClick={() => setActiveTab('assets')}
-            className={`px-3 py-1.5 rounded-md transition-colors ${
-              activeTab === 'assets' ? 'bg-white text-gray-900 shadow-2xs font-bold' : 'text-gray-600 hover:text-gray-900'
-            }`}
-          >
-            Fixed Assets ({assets.length})
-          </button>
-          <button
-            onClick={() => setActiveTab('supplies')}
-            className={`px-3 py-1.5 rounded-md transition-colors ${
-              activeTab === 'supplies' ? 'bg-white text-gray-900 shadow-2xs font-bold' : 'text-gray-600 hover:text-gray-900'
-            }`}
-          >
-            Store Supplies & Stock
-          </button>
-          <button
-            onClick={() => setActiveTab('billing')}
-            className={`px-3 py-1.5 rounded-md transition-colors ${
-              activeTab === 'billing' ? 'bg-white text-gray-900 shadow-2xs font-bold' : 'text-gray-600 hover:text-gray-900'
-            }`}
-          >
-            Store POS Billing
-          </button>
-          <button
-            onClick={() => setActiveTab('add')}
-            className="px-3.5 py-1.5 text-xs font-semibold text-white bg-[#e91e63] hover:bg-[#d81b60] rounded-md transition-colors shadow-2xs flex items-center gap-1 shrink-0"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            <span>Add Asset</span>
-          </button>
+        <div className="flex flex-wrap items-center gap-2">
+          {onOpenQRScanner && (
+            <button
+              onClick={onOpenQRScanner}
+              className="px-3.5 py-1.5 bg-[#8e24aa] hover:bg-[#7b1fa2] text-white text-xs font-semibold rounded-lg shadow-2xs flex items-center gap-1.5 transition-colors shrink-0"
+              title="Launch Camera QR Scanner for Rapid Asset Check-In and Check-Out"
+            >
+              <Camera className="w-3.5 h-3.5" />
+              <span>Camera QR Asset Check-In</span>
+            </button>
+          )}
+
+          <div className="flex items-center gap-1.5 p-1 bg-gray-100/90 rounded-lg text-xs font-medium border border-gray-200/60">
+            <button
+              onClick={() => setActiveTab('assets')}
+              className={`px-3 py-1.5 rounded-md transition-all ${
+                activeTab === 'assets' ? 'bg-[#0097a7] text-white shadow-xs font-bold' : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              Fixed Assets ({assets.length})
+            </button>
+            <button
+              onClick={() => setActiveTab('supplies')}
+              className={`px-3 py-1.5 rounded-md transition-all ${
+                activeTab === 'supplies' ? 'bg-[#0097a7] text-white shadow-xs font-bold' : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              Store Supplies & Stock
+            </button>
+            <button
+              onClick={() => setActiveTab('billing')}
+              className={`px-3 py-1.5 rounded-md transition-all ${
+                activeTab === 'billing' ? 'bg-[#0097a7] text-white shadow-xs font-bold' : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              Store POS Billing
+            </button>
+            <button
+              onClick={() => setActiveTab('add')}
+              className={`px-3.5 py-1.5 text-xs font-semibold rounded-md transition-colors shadow-2xs flex items-center gap-1 shrink-0 ${
+                activeTab === 'add' ? 'bg-[#d81b60] text-white' : 'bg-[#e91e63] hover:bg-[#d81b60] text-white'
+              }`}
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>Add Asset</span>
+            </button>
+          </div>
         </div>
       </div>
 
       {/* VIEW: FIXED ASSETS */}
       {activeTab === 'assets' && (
-        <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100/80 space-y-4">
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
-            <div className="relative w-full sm:w-72">
-              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+        <div className="space-y-6">
+          {/* Multicolor Asset KPI Metric Cards */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="bg-white rounded-2xl p-4 shadow-sm border border-cyan-100 flex items-center justify-between">
+              <div>
+                <span className="text-[11px] font-bold uppercase tracking-wider text-cyan-700">Capitalized Value</span>
+                <div className="text-2xl font-black text-gray-900 mt-0.5 tabular-nums">₹48.5 L</div>
+                <span className="text-[10px] text-cyan-600 font-semibold">{assets.length} Registered Assets</span>
+              </div>
+              <div className="w-11 h-11 rounded-xl bg-[#e0f7fa] flex items-center justify-center text-[#0097a7] shrink-0">
+                <Boxes className="w-5 h-5" />
+              </div>
+            </div>
+
+            <div className="bg-white rounded-2xl p-4 shadow-sm border border-emerald-100 flex items-center justify-between">
+              <div>
+                <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-700">Audit Status</span>
+                <div className="text-2xl font-black text-gray-900 mt-0.5 tabular-nums">96.2%</div>
+                <span className="text-[10px] text-emerald-600 font-semibold">Excellent Condition</span>
+              </div>
+              <div className="w-11 h-11 rounded-xl bg-[#e8f5e9] flex items-center justify-center text-[#43a047] shrink-0">
+                <CheckCircle2 className="w-5 h-5" />
+              </div>
+            </div>
+
+            <div className="bg-white rounded-2xl p-4 shadow-sm border border-amber-100 flex items-center justify-between">
+              <div>
+                <span className="text-[11px] font-bold uppercase tracking-wider text-amber-700">Checked Out</span>
+                <div className="text-2xl font-black text-gray-900 mt-0.5 tabular-nums">14 Items</div>
+                <span className="text-[10px] text-amber-600 font-semibold">Assigned to Labs & Staff</span>
+              </div>
+              <div className="w-11 h-11 rounded-xl bg-[#fff8e1] flex items-center justify-center text-[#f57f17] shrink-0">
+                <Package className="w-5 h-5" />
+              </div>
+            </div>
+
+            <div className="bg-white rounded-2xl p-4 shadow-sm border border-purple-100 flex items-center justify-between">
+              <div>
+                <span className="text-[11px] font-bold uppercase tracking-wider text-purple-700">QR Tagging Rate</span>
+                <div className="text-2xl font-black text-gray-900 mt-0.5 tabular-nums">100%</div>
+                <span className="text-[10px] text-purple-600 font-semibold">Optical Camera Check-In</span>
+              </div>
+              <div className="w-11 h-11 rounded-xl bg-[#ede7f6] flex items-center justify-center text-[#8e24aa] shrink-0">
+                <Camera className="w-5 h-5" />
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100/80 space-y-4">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+              <div className="relative w-full sm:w-72">
+                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
               <input
                 type="text"
                 value={assetSearch}
@@ -170,6 +236,7 @@ export const AssetSuppliesModule: React.FC<AssetSuppliesProps> = ({
             </table>
           </div>
         </div>
+      </div>
       )}
 
       {/* VIEW: STORE SUPPLIES & STOCK */}

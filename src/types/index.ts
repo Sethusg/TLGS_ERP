@@ -13,7 +13,9 @@ export type NavSection =
   | 'TC'
   | 'SETTINGS'
   | 'ASSET'
-  | 'SUPPLIES';
+  | 'SUPPLIES'
+  | 'ID_CARDS'
+  | 'CANTEEN';
 
 export type SubMenuAction = {
   label: string;
@@ -90,6 +92,7 @@ export interface Staff {
   };
   status: 'Active' | 'On Leave' | 'Archived' | 'Resigned';
   leaveBalance: number;
+  bloodGroup?: string;
   photoUrl?: string;
   archivedDetails?: ArchivedStaffDetails;
 }
@@ -130,6 +133,7 @@ export interface ExamRecord {
   overallGrade: string;
   rank: number;
   term: 'Term 1' | 'Term 2' | 'Mid-Term' | 'Annual';
+  isFinalized?: boolean;
 }
 
 export interface FeeReceipt {
@@ -251,3 +255,63 @@ export interface SchoolAsset {
   condition: 'Excellent' | 'Good' | 'Maintenance Required' | 'Disposed';
   assignedTo?: string;
 }
+
+export interface SystemUser {
+  id: string;
+  username: string;
+  fullName: string;
+  email: string;
+  phone: string;
+  role: 'Super Admin' | 'Principal' | 'Teacher' | 'Accountant' | 'Parent' | 'Transport Staff';
+  status: 'Active' | 'Inactive';
+  lastLogin?: string;
+  password?: string;
+}
+
+export interface SchoolClass {
+  id: string;
+  gradeName: string;
+  curriculum: 'CBSE' | 'State Board' | 'Matriculation';
+  sections: string[];
+  roomNo: string;
+  classTeacher?: string;
+}
+
+export interface SchoolSubject {
+  id: string;
+  code: string;
+  name: string;
+  type: 'Core' | 'Elective' | 'Co-Scholastic';
+  maxMarks: number;
+  gradeLevel: string;
+}
+
+export interface TimetableEntry {
+  id: string;
+  grade: string;
+  section: string;
+  day: 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday';
+  periodNo: number;
+  timeSlot: string;
+  subjectName: string;
+  teacherName: string;
+}
+
+export interface NewsItem {
+  id: string;
+  date: string;
+  title: string;
+  category: string;
+  summary: string;
+}
+
+export interface CalendarEvent {
+  id: string;
+  date: string;
+  title: string;
+  desc: string;
+  badge: string;
+  color: string;
+}
+
+
