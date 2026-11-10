@@ -10,6 +10,7 @@ import {
   LoyaltyTransaction,
   PosUser,
   ShiftSession,
+  DiscountRule,
 } from '../types/pos';
 import {
   INITIAL_STORE_SETTINGS,
@@ -22,6 +23,7 @@ import {
   INITIAL_LOYALTY_TRANSACTIONS,
   INITIAL_USERS,
   INITIAL_SHIFTS,
+  INITIAL_DISCOUNT_RULES,
 } from '../data/initialData';
 
 const SETTINGS_KEY = 'gsr_pos_settings';
@@ -37,6 +39,7 @@ const USERS_KEY = 'gsr_pos_users';
 const CURRENT_USER_KEY = 'gsr_pos_current_user';
 const ACTIVE_SHIFT_KEY = 'gsr_pos_active_shift';
 const SHIFTS_HISTORY_KEY = 'gsr_pos_shifts_history';
+const DISCOUNTS_KEY = 'tlgs_pos_discounts';
 
 export function getStoredUsers(): PosUser[] {
   try {
@@ -301,6 +304,23 @@ export function saveStoredActiveCart(cart: { items: CartItem[]; customerId?: str
   localStorage.setItem(ACTIVE_CART_KEY, JSON.stringify(cart));
 }
 
+export function getStoredDiscountRules(): DiscountRule[] {
+  try {
+    const raw = localStorage.getItem(DISCOUNTS_KEY);
+    if (!raw) {
+      localStorage.setItem(DISCOUNTS_KEY, JSON.stringify(INITIAL_DISCOUNT_RULES));
+      return INITIAL_DISCOUNT_RULES;
+    }
+    return JSON.parse(raw);
+  } catch {
+    return INITIAL_DISCOUNT_RULES;
+  }
+}
+
+export function saveStoredDiscountRules(rules: DiscountRule[]): void {
+  localStorage.setItem(DISCOUNTS_KEY, JSON.stringify(rules));
+}
+
 export function resetToDefaults(): void {
   localStorage.removeItem(SETTINGS_KEY);
   localStorage.removeItem(PRODUCTS_KEY);
@@ -315,4 +335,5 @@ export function resetToDefaults(): void {
   localStorage.removeItem(CURRENT_USER_KEY);
   localStorage.removeItem(ACTIVE_SHIFT_KEY);
   localStorage.removeItem(SHIFTS_HISTORY_KEY);
+  localStorage.removeItem(DISCOUNTS_KEY);
 }

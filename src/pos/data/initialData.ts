@@ -9,6 +9,7 @@ import {
   LoyaltyTransaction,
   PosUser,
   ShiftSession,
+  DiscountRule,
 } from '../types/pos';
 
 export const INITIAL_USERS: PosUser[] = [
@@ -978,5 +979,43 @@ export const INITIAL_LOYALTY_TRANSACTIONS: LoyaltyTransaction[] = [
     orderNumber: 'GSR-20261024-0108',
     description: 'Redeemed for ₹50 instant bill discount',
     date: new Date(Date.now() - 86400000).toISOString(),
+  },
+];
+
+export const INITIAL_DISCOUNT_RULES: DiscountRule[] = [
+  {
+    id: 'disc-1',
+    title: 'Happy Hour Beverage Special',
+    code: 'HAPPY_HOUR_BEV',
+    type: 'percentage',
+    value: 15,
+    condition_type: 'time_of_day',
+    condition_value: 'Beverages',
+    start_time: '14:00',
+    end_time: '17:00',
+    is_active: true,
+    created_at: '2026-01-01T08:00:00Z',
+  },
+  {
+    id: 'disc-2',
+    title: 'Staff Canteen Subsidy',
+    code: 'STAFF_SUB_10',
+    type: 'percentage',
+    value: 10,
+    condition_type: 'student_category',
+    condition_value: 'staff',
+    is_active: true,
+    created_at: '2026-01-01T08:00:00Z',
+  },
+  {
+    id: 'disc-3',
+    title: 'Bulk Snack Volume Discount',
+    code: 'BULK_SNACK_50',
+    type: 'fixed',
+    value: 50,
+    condition_type: 'bulk_volume',
+    min_quantity: 5,
+    is_active: true,
+    created_at: '2026-01-01T08:00:00Z',
   },
 ];

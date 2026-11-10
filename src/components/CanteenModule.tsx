@@ -40,6 +40,7 @@ import {
   saveStoredActiveShift,
   getStoredShifts,
   saveStoredShifts,
+  getStoredDiscountRules,
   resetToDefaults,
 } from '../pos/utils/storage';
 import { CanteenDashboard } from '../pos/components/CanteenDashboard';
@@ -417,6 +418,7 @@ export const CanteenModule: React.FC<CanteenModuleProps> = ({ subItem = 'canteen
           categories={categories}
           customers={customers}
           rewards={rewards}
+          discountRules={getStoredDiscountRules()}
           settings={settings}
           activeCart={activeCart}
           selectedCustomerId={selectedCustomerId}

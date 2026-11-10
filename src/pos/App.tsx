@@ -13,6 +13,7 @@ import {
   PosUser,
   ShiftSession,
   AuthView,
+  DiscountRule,
 } from './types/pos';
 import {
   getStoredSettings,
@@ -31,6 +32,8 @@ import {
   saveStoredLoyaltyRewards,
   getStoredLoyaltyTransactions,
   saveStoredLoyaltyTransactions,
+  getStoredDiscountRules,
+  saveStoredDiscountRules,
   getStoredActiveCart,
   saveStoredActiveCart,
   getStoredUsers,
@@ -53,6 +56,7 @@ import { ShiftsHistoryPage } from './components/shift/ShiftsHistoryPage';
 import { CheckoutTerminal } from './components/CheckoutTerminal';
 import { CustomerDashboard } from './components/CustomerDashboard';
 import { LoyaltyProgramHub } from './components/LoyaltyProgramHub';
+import { DiscountManager } from './components/DiscountManager';
 import { CustomerFacingDisplay } from './components/CustomerFacingDisplay';
 import { InventoryManager } from './components/InventoryManager';
 import { DailySalesReports } from './components/DailySalesReports';
@@ -67,6 +71,7 @@ import { NotificationPanel } from './components/NotificationPanel';
 import { StockAlertToasts, StockAlert } from './components/StockAlertToasts';
 import { Lock, ArrowRight, X, ShieldAlert } from 'lucide-react';
 import { formatCurrency, formatDateTime } from './utils/formatters';
+import { executeThermalPrint } from './utils/thermalPrinter';
 import {
   InternationalThemeId,
   INTERNATIONAL_THEMES,
@@ -134,6 +139,26 @@ export default function App() {
   const [loyaltyTransactions, setLoyaltyTransactions] = useState<LoyaltyTransaction[]>(
     getStoredLoyaltyTransactions
   );
+  const [discountRules, setDiscountRules] = useState<DiscountRule[]>(getStoredDiscountRules);
+
+  const handleSaveDiscountRule = (rule: DiscountRule) => {
+    const existingIndex = discountRules.findIndex((r) => r.id === rule.id);
+    let updated: DiscountRule[];
+    if (existingIndex >= 0) {
+      updated = [...discountRules];
+      updated[existingIndex] = rule;
+    } else {
+      updated = [rule, ...discountRules];
+    }
+    setDiscountRules(updated);
+    saveStoredDiscountRules(updated);
+  };
+
+  const handleDeleteDiscountRule = (id: string) => {
+    const updated = discountRules.filter((r) => r.id !== id);
+    setDiscountRules(updated);
+    saveStoredDiscountRules(updated);
+  };
 
   // Active Cart State
   const [activeCart, setActiveCart] = useState<CartItem[]>(() => getStoredActiveCart().items || []);
@@ -446,6 +471,18 @@ export default function App() {
     handleUpdateCart([], undefined);
     setReceiptAutoCloseDuration(2000);
     setActiveReceiptModal(newSale);
+
+    if (settings.auto_print_receipt ?? true) {
+      try {
+        executeThermalPrint(newSale, settings, {
+          width: settings.thermal_printer_width || '80mm',
+          printCustomerReceipt: true,
+          printKitchenToken: settings.print_kitchen_token ?? true,
+        });
+      } catch {
+        // ignore print failure
+      }
+    }
   };
 
   const handleRedeemReward = (customer: Customer, reward: LoyaltyReward) => {
@@ -954,6 +991,7 @@ export default function App() {
             categories={categories}
             customers={customers}
             rewards={rewards}
+            discountRules={discountRules}
             settings={settings}
             activeCart={activeCart}
             selectedCustomerId={selectedCustomerId}
@@ -962,6 +1000,15 @@ export default function App() {
             onOpenCustomerModal={() => setCustomerModalState({ open: true, customer: null })}
             onNavigateToEod={() => setShiftViewMode('eod-closing')}
             onOpenNotifications={() => setIsNotificationPanelOpen(true)}
+          />
+        )}
+
+        {activeTab === 'discounts' && (
+          <DiscountManager
+            rules={discountRules}
+            onSaveRule={handleSaveDiscountRule}
+            onDeleteRule={handleDeleteDiscountRule}
+            settings={settings}
           />
         )}
 

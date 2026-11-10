@@ -197,6 +197,24 @@ export interface InventoryMovement {
   created_at: string;
 }
 
+export type DiscountConditionType = 'category' | 'student_category' | 'time_of_day' | 'bulk_volume' | 'general';
+
+export interface DiscountRule {
+  id: string;
+  title: string;
+  code: string;
+  type: 'percentage' | 'fixed';
+  value: number;
+  condition_type: DiscountConditionType;
+  condition_value?: string;
+  min_purchase_amount?: number;
+  min_quantity?: number;
+  start_time?: string;
+  end_time?: string;
+  is_active: boolean;
+  created_at: string;
+}
+
 export interface StoreSettings {
   store_name: string;
   school_name?: string;
@@ -226,6 +244,7 @@ export type ActiveTab =
   | 'pos'
   | 'customers'
   | 'loyalty'
+  | 'discounts'
   | 'inventory'
   | 'reports'
   | 'shifts'

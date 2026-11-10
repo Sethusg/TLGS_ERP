@@ -17,6 +17,7 @@ import {
   Palette,
   LayoutDashboard,
   Bell,
+  Tag,
 } from 'lucide-react';
 
 interface HeaderProps {
@@ -166,6 +167,19 @@ export const Header: React.FC<HeaderProps> = ({
           >
             <Award className="w-3.5 h-3.5" />
             <span>Loyalty</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => onTabChange('discounts')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg whitespace-nowrap transition-all ${
+              activeTab === 'discounts'
+                ? 'bg-amber-500 text-neutral-950 font-bold shadow-sm'
+                : 'text-neutral-300 hover:text-white hover:bg-neutral-800/60'
+            }`}
+          >
+            <Tag className="w-3.5 h-3.5 text-amber-400" />
+            <span>Discounts</span>
           </button>
 
           <button

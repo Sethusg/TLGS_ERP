@@ -11,6 +11,7 @@ import {
   PosUser,
   ShiftSession,
   ProductCategory,
+  DiscountRule,
 } from '../types/pos';
 import { formatCurrency, generateReceiptNumber } from '../utils/formatters';
 import { executeThermalPrint } from '../utils/thermalPrinter';
@@ -50,6 +51,7 @@ interface CheckoutTerminalProps {
   categories?: ProductCategory[];
   customers: Customer[];
   rewards: LoyaltyReward[];
+  discountRules: DiscountRule[];
   settings: StoreSettings;
   activeCart: CartItem[];
   selectedCustomerId?: string;
@@ -67,6 +69,7 @@ export const CheckoutTerminal: React.FC<CheckoutTerminalProps> = ({
   categories: storeCategories = [],
   customers,
   rewards,
+  discountRules,
   settings,
   activeCart,
   selectedCustomerId,
@@ -305,7 +308,53 @@ export const CheckoutTerminal: React.FC<CheckoutTerminalProps> = ({
     ? Math.min(selectedRewardToApply.discountAmount, subtotal - percentageDiscountAmount)
     : 0;
 
-  const totalDiscount = percentageDiscountAmount + rewardDiscountAmount;
+  // Evaluate applicable discount rules
+  const appliedDiscountRules = useMemo(() => {
+    if (!discountRules || discountRules.length === 0) return [];
+    const now = new Date();
+    const currentTimeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    const totalQty = activeCart.reduce((sum, item) => sum + item.quantity, 0);
+
+    return discountRules.filter((rule) => {
+      if (!rule.is_active) return false;
+
+      if (rule.condition_type === 'student_category') {
+        if (!currentCustomer) return false;
+        if (currentCustomer.account_type !== rule.condition_value) return false;
+      }
+
+      if (rule.condition_type === 'time_of_day' && rule.start_time && rule.end_time) {
+        if (currentTimeStr < rule.start_time || currentTimeStr > rule.end_time) return false;
+        if (rule.condition_value) {
+          const hasCategory = activeCart.some(i => i.product.category.toLowerCase() === rule.condition_value?.toLowerCase());
+          if (!hasCategory) return false;
+        }
+      }
+
+      if (rule.condition_type === 'bulk_volume') {
+        if (rule.min_quantity && totalQty < rule.min_quantity) return false;
+      }
+
+      if (rule.condition_type === 'category' && rule.condition_value) {
+        const hasCategory = activeCart.some(i => i.product.category.toLowerCase() === rule.condition_value?.toLowerCase());
+        if (!hasCategory) return false;
+      }
+
+      return true;
+    });
+  }, [discountRules, activeCart, currentCustomer]);
+
+  const ruleDiscountAmount = useMemo(() => {
+    return appliedDiscountRules.reduce((sum, rule) => {
+      if (rule.type === 'percentage') {
+        return sum + (subtotal * rule.value) / 100;
+      } else {
+        return sum + rule.value;
+      }
+    }, 0);
+  }, [appliedDiscountRules, subtotal]);
+
+  const totalDiscount = percentageDiscountAmount + rewardDiscountAmount + ruleDiscountAmount;
   const taxableAmount = Math.max(0, subtotal - totalDiscount);
 
   const totalTax = useMemo(() => {
