@@ -12,6 +12,7 @@ import { SidebarNav } from '../components/SidebarNav';
 import { HeaderNav } from '../components/HeaderNav';
 import { NavAppearanceSettings } from '../components/Modals/NavAppearanceModal';
 import { useSchoolContext } from '../contexts/SchoolContext';
+import { OfflineIndicator } from '../components/Common/PWAInstallControls';
 
 interface ErpLayoutProps {
   currentSection: NavSection;
@@ -181,6 +182,7 @@ export const ErpLayout: React.FC<ErpLayoutProps> = ({
 
         <main className="flex-1 pb-14">{children}</main>
       </div>
+      <OfflineIndicator />
     </div>
   );
 };

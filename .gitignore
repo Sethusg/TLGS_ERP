@@ -1,6 +1,11 @@
 node_modules/
+desktop/node_modules/
 build/
+!build/icon.ico
+!build/icon.png
 dist/
+dist-server/
+release/
 coverage/
 .DS_Store
 *.log

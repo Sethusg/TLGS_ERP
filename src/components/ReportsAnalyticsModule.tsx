@@ -141,7 +141,7 @@ export const ReportsAnalyticsModule: React.FC<ReportsAnalyticsModuleProps> = ({
         />
         <EnterpriseMetricCard
           label="Group Schools Tracked"
-          value={SCHOOL_OPTIONS.length}
+          value={metrics.totalSchools}
           detail="Unified executive reporting"
           icon={BarChart3}
           tone="navy"

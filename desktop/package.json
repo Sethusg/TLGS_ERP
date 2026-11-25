@@ -1,0 +1,19 @@
+{
+  "name": "tlgs-erp-desktop",
+  "version": "1.0.0",
+  "private": true,
+  "description": "TLGS-ERP Standalone Windows 11 Desktop Application (Electron Wrapper for TLGS-ERP)",
+  "author": "TLGS-ERP",
+  "main": "electron/main.cjs",
+  "scripts": {
+    "start": "electron ../electron/main.cjs",
+    "dev": "cross-env TLGS_ELECTRON_DEV=true electron ../electron/main.cjs",
+    "build:win": "electron-builder --win --x64 --config ../electron-builder.yml",
+    "build:win-nsis": "electron-builder --win nsis --x64 --config ../electron-builder.yml",
+    "build:win-portable": "electron-builder --win portable --x64 --config ../electron-builder.yml"
+  },
+  "devDependencies": {
+    "electron": "^35.1.5",
+    "electron-builder": "^26.0.12"
+  }
+}

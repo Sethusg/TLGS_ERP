@@ -24,4 +24,5 @@ export { SchoolModule as SchoolOperationsPage } from '../components/SchoolModule
 export { TCModule as TransferCertificatePage } from '../components/TCModule';
 export { IDCardPrinterModule as IDCardStudioPage } from '../components/IDCardPrinterModule';
 export { CanteenModule as CanteenPosPage } from '../components/CanteenModule';
+export { PosModule as PosPage } from '../components/PosModule';
 export { AdminSettingsModule as SystemSettingsPage } from '../components/AdminSettingsModule';

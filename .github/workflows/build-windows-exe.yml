@@ -1,0 +1,46 @@
+name: Build TLGS-ERP Windows 11 Installer (.exe)
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: 'Build target (win = NSIS + Portable, nsis = Installer only, portable = Portable only)'
+        required: true
+        default: 'win'
+        type: choice
+        options:
+          - win
+          - nsis
+          - portable
+
+jobs:
+  build-windows-exe:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout TLGS-ERP repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Root Web & Server Dependencies
+        run: npm install
+
+      - name: Build Web Bundle & Standalone Server
+        run: npm run desktop:prepare
+
+      - name: Install Desktop Electron Dependencies
+        working-directory: desktop
+        run: npm install
+
+      - name: Package Windows 11 x64 Installable EXE
+        run: node scripts/build-windows-exe.mjs ${{ github.event.inputs.target || 'win' }}
+
+      - name: Upload Windows 11 EXE Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: TLGS-ERP-Windows11-EXE
+          path: release/*.exe
+          retention-days: 30

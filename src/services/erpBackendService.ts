@@ -25,6 +25,7 @@ import {
   OrganizationOption,
   SchoolOption,
 } from '../data/schoolContext';
+import { resolveApiUrl } from '../utils/platformRuntime';
 
 export interface AuthenticatedErpUser {
   id: string;
@@ -109,7 +110,7 @@ async function apiJson<T>(
     headers.Authorization = `Bearer ${activeBearerToken}`;
   }
 
-  const res = await fetch(url, {
+  const res = await fetch(resolveApiUrl(url), {
     ...options,
     headers,
   });

@@ -49,6 +49,7 @@ import {
   normalizeLegacyRole,
 } from '../config/rbac';
 import { useSchoolContext } from '../contexts/SchoolContext';
+import { PWAInstallButton } from './Common/PWAInstallControls';
 
 interface HeaderNavProps {
   currentSection: NavSection;
@@ -667,6 +668,12 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
               </span>
             )}
           </button>
+
+          {/* Chrome/Edge Install App or Windows 11 Desktop App Center */}
+          <PWAInstallButton
+            variant="header"
+            onOpenDesktopCenter={() => onSelectSection('SETTINGS', 'settings-desktop')}
+          />
 
           {/* Quick Action Button (Accessible at All Viewports) */}
           <button

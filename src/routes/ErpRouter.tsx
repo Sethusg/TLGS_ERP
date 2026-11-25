@@ -59,6 +59,7 @@ import {
   TransferCertificatePage,
   IDCardStudioPage,
   CanteenPosPage,
+  PosPage,
   SystemSettingsPage,
 } from '../pages';
 
@@ -503,12 +504,17 @@ export const ErpRouter: React.FC<ErpRouterProps> = ({
     case 'CANTEEN':
       return <CanteenPosPage subItem={activeSubItem} />;
 
+    case 'POS':
+      return <PosPage subItem={activeSubItem} />;
+
     case 'SETTINGS':
       return (
         <SystemSettingsPage
           initialTab={
-            activeSubItem === 'settings-backup' ||
-            activeSubItem === 'admin-backup'
+            activeSubItem === 'settings-desktop'
+              ? 'desktop'
+              : activeSubItem === 'settings-backup' ||
+                activeSubItem === 'admin-backup'
               ? 'backup'
               : activeSubItem === 'admin-audit'
               ? 'audit'

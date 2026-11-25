@@ -1,0 +1,55 @@
+appId: com.tlgserp.desktop
+productName: TLGS-ERP
+copyright: Copyright © 2026 TLGS-ERP Multi-School Management System
+asar: true
+compression: maximum
+directories:
+  output: ../release
+  buildResources: ../build
+files:
+  - from: ../electron
+    to: electron
+    filter:
+      - "**/*"
+  - package.json
+extraResources:
+  - from: ../dist
+    to: dist
+    filter:
+      - "**/*"
+  - from: ../dist-server
+    to: server
+    filter:
+      - "server.cjs"
+  - from: ../build
+    to: build
+    filter:
+      - "icon.png"
+      - "icon.ico"
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+    - target: portable
+      arch:
+        - x64
+  icon: ../build/icon.ico
+  artifactName: "${productName}-Setup-${version}-x64.${ext}"
+  requestedExecutionLevel: asInvoker
+nsis:
+  oneClick: false
+  perMachine: false
+  allowElevation: true
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: TLGS-ERP
+  uninstallDisplayName: TLGS-ERP Multi-School Management System
+  installerIcon: ../build/icon.ico
+  uninstallerIcon: ../build/icon.ico
+  installerHeaderIcon: ../build/icon.ico
+  runAfterFinish: true
+  artifactName: "${productName}-Setup-${version}-x64.${ext}"
+portable:
+  artifactName: "${productName}-Portable-${version}-win-x64.${ext}"

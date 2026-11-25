@@ -204,6 +204,24 @@ function ErpWorkspace() {
 
   const session = useSessionPreviewTimer(isLoggedIn, handleSessionExpire);
 
+  // Real-time cross-platform synchronization (Web <-> Windows 11 Desktop EXE via shared server SSE)
+  useEffect(() => {
+    if (!isLoggedIn) return;
+    const token = getErpSessionToken();
+    if (!token) return;
+    let debounceTimer: number | null = null;
+    const unsubscribe = subscribeToErpSyncEvents(token, () => {
+      if (debounceTimer) window.clearTimeout(debounceTimer);
+      debounceTimer = window.setTimeout(() => {
+        void hydrateFromBackend();
+      }, 450);
+    });
+    return () => {
+      if (debounceTimer) window.clearTimeout(debounceTimer);
+      unsubscribe();
+    };
+  }, [isLoggedIn, hydrateFromBackend]);
+
   // Sync live persisted operational records into SchoolContext for KPI calculation
   useEffect(() => {
     setLiveMetricsInput({
@@ -212,7 +230,9 @@ function ErpWorkspace() {
       feeReceipts,
       leaveRequests,
       usersCount: users.length,
-      pendingAdmissionsCount: crmLeads.filter((l) => l.status !== 'Converted').length,
+      pendingAdmissionsCount: crmLeads.filter(
+        (l) => l.status !== 'Admitted' && l.status !== 'Closed'
+      ).length,
     });
   }, [
     students,

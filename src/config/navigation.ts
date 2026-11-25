@@ -490,6 +490,7 @@ export const MAIN_ERP_MENUS: MainMenuItemDef[] = [
       { label: 'Audit Logs', actionId: 'admin-audit' },
       { label: 'Login History', actionId: 'admin-login-history' },
       { label: 'Backup Management', actionId: 'settings-backup', targetSection: 'SETTINGS' },
+      { label: 'Web & Windows Desktop App', actionId: 'settings-desktop', targetSection: 'SETTINGS' },
       { label: 'System Monitoring', actionId: 'admin-monitoring' },
     ],
   },

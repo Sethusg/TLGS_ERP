@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   Shield,
   Settings as SettingsIcon,
@@ -22,6 +22,7 @@ import {
   FileText,
   Printer,
   Eye,
+  Monitor,
 } from 'lucide-react';
 import {
   Student,
@@ -37,6 +38,7 @@ import {
 } from '../types';
 import { SchoolDataPdfModal } from './Modals/SchoolDataPdfModal';
 import { downloadSchoolDataPDF } from '../utils/exportSchoolDataPdf';
+import { DesktopWebRuntimeCenter } from './DesktopWebRuntimeCenter';
 
 export interface FullSystemBackupData {
   schemaVersion: string;
@@ -66,7 +68,7 @@ export interface FullSystemBackupData {
 }
 
 interface AdminSettingsProps {
-  initialTab?: 'roles' | 'settings' | 'audit' | 'backup';
+  initialTab?: 'roles' | 'settings' | 'audit' | 'backup' | 'desktop';
   systemState?: {
     students: Student[];
     staffList: Staff[];
@@ -93,7 +95,10 @@ export const AdminSettingsModule: React.FC<AdminSettingsProps> = ({
   onRestoreState,
   onResetToDemoData,
 }) => {
-  const [activeTab, setActiveTab] = useState<'roles' | 'settings' | 'audit' | 'backup'>(initialTab);
+  const [activeTab, setActiveTab] = useState<'roles' | 'settings' | 'audit' | 'backup' | 'desktop'>(initialTab);
+  useEffect(() => {
+    setActiveTab(initialTab);
+  }, [initialTab]);
   const [auditSearch, setAuditSearch] = useState('');
   const [auditTypeFilter, setAuditTypeFilter] = useState('ALL');
 
@@ -266,6 +271,17 @@ export const AdminSettingsModule: React.FC<AdminSettingsProps> = ({
             >
               <Database className="w-3.5 h-3.5 text-blue-600" />
               <span>Data Backup & Restore</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('desktop')}
+              className={`px-3 py-1.5 rounded-md transition-colors flex items-center gap-1.5 cursor-pointer ${
+                activeTab === 'desktop'
+                  ? 'bg-white text-[#0B1F3A] shadow-2xs font-bold'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              <Monitor className="w-3.5 h-3.5 text-[#D4AF37]" />
+              <span>Web &amp; Windows Desktop</span>
             </button>
           </div>
 
@@ -793,6 +809,9 @@ export const AdminSettingsModule: React.FC<AdminSettingsProps> = ({
           )}
         </div>
       )}
+
+      {/* VIEW: WEB & WINDOWS 11 DESKTOP RUNTIME */}
+      {activeTab === 'desktop' && <DesktopWebRuntimeCenter />}
 
       {/* Structured School Data PDF Modal */}
       {systemState && (

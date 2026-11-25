@@ -9,12 +9,47 @@ import {
   DEFAULT_SERVER_POS_PERMISSIONS,
   ensurePosStoreCollections,
 } from './server/posRoutes';
+import {
+  getPublicRuntimeInfo,
+  loadServerRuntimeConfig,
+} from './server/runtimeConfig';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const RESOLVED_DIRNAME =
+  typeof __dirname !== 'undefined'
+    ? __dirname
+    : path.dirname(fileURLToPath(import.meta.url));
 
-// Persistent server-side database directory (zero demo data on fresh install)
-const DATA_DIR = path.join(__dirname, '.erp-data');
-const STORE_PATH = path.join(DATA_DIR, 'tlgs_erp_store.json');
+const RUNTIME_CONFIG = loadServerRuntimeConfig(RESOLVED_DIRNAME);
+
+// Persistent server-side database directory (explicitly separated for central vs local standalone mode)
+const DATA_DIR = RUNTIME_CONFIG.dataDir;
+const STORE_PATH = path.join(
+  DATA_DIR,
+  RUNTIME_CONFIG.backendMode === 'local-standalone'
+    ? 'tlgs_erp_local_store.json'
+    : 'tlgs_erp_store.json'
+);
+
+let dataRevision = 1;
+const syncEventClients = new Set<Response>();
+
+function broadcastSyncEvent(reason: string = 'store_updated') {
+  dataRevision += 1;
+  const payload = JSON.stringify({
+    type: 'data_changed',
+    revision: dataRevision,
+    reason,
+    backendMode: RUNTIME_CONFIG.backendMode,
+    timestamp: new Date().toISOString(),
+  });
+  for (const client of syncEventClients) {
+    try {
+      client.write(`event: sync\ndata: ${payload}\n\n`);
+    } catch {
+      syncEventClients.delete(client);
+    }
+  }
+}
 
 const SESSION_SECRET =
   process.env.ERP_SESSION_SECRET || crypto.randomBytes(32).toString('hex');
@@ -268,6 +303,7 @@ function persistStore(store: ErpDatabaseStore): void {
   const tmpPath = `${STORE_PATH}.tmp`;
   fs.writeFileSync(tmpPath, JSON.stringify(store, null, 2), 'utf8');
   fs.renameSync(tmpPath, STORE_PATH);
+  broadcastSyncEvent('persisted');
 }
 
 function hashPassword(password: string, salt?: string): {
@@ -445,9 +481,38 @@ interface AuthedRequest extends Request {
 
 async function startServer() {
   const app = express();
+  if (RUNTIME_CONFIG.trustProxy) {
+    app.set('trust proxy', 1);
+  }
+  app.use((_req, res, next) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+    next();
+  });
   app.use(express.json({ limit: '10mb' }));
 
-  const PORT = process.env.PORT || 3000;
+  // Allow cross-origin API access when the Windows 11 Desktop EXE or remote Web client connects to a central TLGS-ERP server
+  app.use('/api', (req, res, next) => {
+    const origin = req.headers.origin;
+    const allowedList = RUNTIME_CONFIG.allowedCorsOrigins;
+    const isAllowed =
+      Boolean(origin) &&
+      (allowedList.length === 0 || allowedList.includes(origin!));
+    if (origin && isAllowed) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+      res.setHeader('Vary', 'Origin');
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Idempotency-Key');
+      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+    }
+    if (req.method === 'OPTIONS') {
+      res.status(204).end();
+      return;
+    }
+    next();
+  });
+
+  const PORT = RUNTIME_CONFIG.port;
+  const HOST = RUNTIME_CONFIG.host;
   const httpServer = http.createServer(app);
 
   let db: ErpDatabaseStore = loadStore();
@@ -479,14 +544,59 @@ async function startServer() {
     next();
   };
 
-  // Health Check
-  app.get('/api/health', (_req, res) => {
+  // Health Check & Public Non-Secret Runtime Metadata (shared by Web Chrome/Edge and Windows 11 Desktop EXE)
+  const healthHandler = (_req: Request, res: Response) => {
     res.json({
       status: 'healthy',
+      ...getPublicRuntimeInfo(RUNTIME_CONFIG, dataRevision),
       database: 'connected',
       cleanDatabase: db.organizations.length === 0 && db.students.length === 0,
       setupRequired: db.authUsers.filter((u) => !u.isDeleted).length === 0,
       timestamp: new Date().toISOString(),
+    });
+  };
+  app.get('/api/health', healthHandler);
+  app.get('/api/v1/health', healthHandler);
+  app.get('/api/v1/runtime/info', (_req, res) => {
+    res.json(getPublicRuntimeInfo(RUNTIME_CONFIG, dataRevision));
+  });
+
+  // Real-time Server-Sent Events stream so Web & Windows Desktop clients sync immediately when any workstation updates records
+  app.get('/api/v1/events/sync', (req, res) => {
+    const tokenQuery = typeof req.query.token === 'string' ? req.query.token : '';
+    const authHeader = req.headers.authorization || '';
+    const token = authHeader.startsWith('Bearer ')
+      ? authHeader.slice('Bearer '.length).trim()
+      : tokenQuery;
+    if (!token || !verifySessionToken(token)) {
+      res.status(401).json({ error: 'Authentication required for sync stream.' });
+      return;
+    }
+
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.flushHeaders?.();
+    res.write(
+      `event: connected\ndata: ${JSON.stringify({
+        revision: dataRevision,
+        backendMode: RUNTIME_CONFIG.backendMode,
+      })}\n\n`
+    );
+
+    syncEventClients.add(res);
+    const keepAlive = setInterval(() => {
+      try {
+        res.write(': ping\n\n');
+      } catch {
+        clearInterval(keepAlive);
+        syncEventClients.delete(res);
+      }
+    }, 25000);
+
+    req.on('close', () => {
+      clearInterval(keepAlive);
+      syncEventClients.delete(res);
     });
   });
 
@@ -1458,14 +1568,17 @@ async function startServer() {
     });
     app.use(vite.middlewares);
   } else {
-    app.use(express.static(path.join(__dirname, 'dist')));
+    const staticDistDir = RUNTIME_CONFIG.staticDistDir;
+    app.use(express.static(staticDistDir));
     app.get('*', (_req, res) => {
-      res.sendFile(path.join(__dirname, 'dist', 'index.html'));
+      res.sendFile(path.join(staticDistDir, 'index.html'));
     });
   }
 
-  httpServer.listen(Number(PORT), '0.0.0.0', () => {
-    console.log(`TLGS-ERP Server running on port ${PORT}`);
+  httpServer.listen(Number(PORT), HOST, () => {
+    console.log(
+      `TLGS-ERP Server [${RUNTIME_CONFIG.profile} / ${RUNTIME_CONFIG.backendMode}] running on http://${HOST}:${PORT}`
+    );
   });
 }
 

@@ -7,6 +7,8 @@ export interface OrganizationOption {
   code: string;
   city: string;
   establishedYear: number;
+  regNumber?: string;
+  headquarters?: string;
   email?: string;
   phone?: string;
   logoUrl?: string;
@@ -34,6 +36,7 @@ export interface SchoolOption {
   organizationName: string;
   name: string;
   shortName: string;
+  code?: string;
   board: 'CBSE' | 'ICSE' | 'IB' | 'Cambridge IGCSE' | 'State Board';
   affiliationNo: string;
   campuses: CampusOption[];
@@ -45,6 +48,8 @@ export interface AcademicYearOption {
   startDate: string;
   endDate: string;
   status: 'Active' | 'Archived' | 'Upcoming';
+  isActive?: boolean;
+  isCurrent?: boolean;
   multiplier: number;
 }
 
@@ -286,9 +291,15 @@ export function getInstitutionalMetrics(
   ).length;
   const nonTeachingStaff = Math.max(0, totalStaff - teachingStaff);
 
-  const presentStudents = realStudents.filter((s) => s.attendanceStatus === 'Present').length;
-  const absentStudents = realStudents.filter((s) => s.attendanceStatus === 'Absent').length;
-  const lateStudents = realStudents.filter((s) => s.attendanceStatus === 'Late').length;
+  const presentStudents = realStudents.filter(
+    (s) => (s as Student & { attendanceStatus?: string }).attendanceStatus === 'Present'
+  ).length;
+  const absentStudents = realStudents.filter(
+    (s) => (s as Student & { attendanceStatus?: string }).attendanceStatus === 'Absent'
+  ).length;
+  const lateStudents = realStudents.filter(
+    (s) => (s as Student & { attendanceStatus?: string }).attendanceStatus === 'Late'
+  ).length;
   const attendanceRate =
     totalStudents > 0 ? Number(((presentStudents / totalStudents) * 100).toFixed(1)) : 0;
 
@@ -298,7 +309,10 @@ export function getInstitutionalMetrics(
   const staffAttendanceRate =
     totalStaff > 0 ? Number(((presentStaff / totalStaff) * 100).toFixed(1)) : 0;
 
-  const totalFeeRupees = realReceipts.reduce((acc, r) => acc + (Number(r.amount) || 0), 0);
+  const totalFeeRupees = realReceipts.reduce(
+    (acc, r) => acc + (Number((r as FeeReceipt & { amount?: number }).amount ?? r.totalAmount) || 0),
+    0
+  );
   const feeCollectedLakhs = Number((totalFeeRupees / 100000).toFixed(2));
   const feeTargetLakhs = feeCollectedLakhs;
   const feePendingLakhs = 0;

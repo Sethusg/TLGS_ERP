@@ -8,8 +8,16 @@
     "build": "vite build",
     "start": "node server.ts",
     "preview": "vite preview",
-    "clean": "rm -rf dist server.js",
-    "lint": "tsc --noEmit"
+    "clean": "rm -rf dist dist-server release server.js",
+    "lint": "tsc --noEmit",
+    "desktop:icons": "node scripts/generate-brand-icons.mjs",
+    "desktop:server": "node scripts/build-desktop-server.mjs",
+    "desktop:prepare": "npm run desktop:icons && npm run build && npm run desktop:server",
+    "desktop:dev": "node scripts/build-windows-exe.mjs dev",
+    "desktop:build": "node scripts/build-windows-exe.mjs win",
+    "desktop:build:win": "node scripts/build-windows-exe.mjs win",
+    "desktop:build:nsis": "node scripts/build-windows-exe.mjs nsis",
+    "desktop:build:portable": "node scripts/build-windows-exe.mjs portable"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
@@ -23,6 +31,7 @@
     "jspdf-autotable": "^5.0.9",
     "lucide-react": "^0.546.0",
     "motion": "^12.23.24",
+    "mysql2": "^3.24.6",
     "qrcode": "^1.5.4",
     "react": "^19.0.1",
     "react-dom": "^19.0.1",
@@ -40,6 +49,7 @@
     "esbuild": "^0.25.0",
     "tailwindcss": "^4.3.3",
     "tsx": "^4.21.0",
-    "typescript": "^7.0.2"
+    "typescript": "^7.0.2",
+    "vite-plugin-pwa": "^2.0.0"
   }
 }
