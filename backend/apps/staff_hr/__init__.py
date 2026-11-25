@@ -1,0 +1,1 @@
+"""Staff & HR Django app."""

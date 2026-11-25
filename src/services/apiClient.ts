@@ -28,6 +28,7 @@ export interface DjangoEndpointMap {
   schools: string;
   campuses: string;
   academicYears: string;
+  subjectAllocations: string;
   students: string;
   staff: string;
   attendance: string;
@@ -49,6 +50,7 @@ export const DJANGO_ERP_ENDPOINTS: DjangoEndpointMap = {
   schools: '/schools/',
   campuses: '/campuses/',
   academicYears: '/academic-years/',
+  subjectAllocations: '/subject-allocations/',
   students: '/students/',
   staff: '/staff/',
   attendance: '/attendance/',

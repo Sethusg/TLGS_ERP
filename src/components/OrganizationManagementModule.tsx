@@ -13,7 +13,7 @@ import {
   Sliders,
   Lock,
 } from 'lucide-react';
-import { SchoolOption } from '../data/schoolContext';
+import { OrganizationOption, SchoolOption, resolveSchoolOrgId } from '../data/schoolContext';
 import { EducationBoard } from '../types';
 import { useSchoolContext } from '../contexts/SchoolContext';
 import {
@@ -54,22 +54,9 @@ interface SchoolDocumentItem {
   status: 'Verified' | 'Renewal Due';
 }
 
-const INITIAL_DEPARTMENTS: DepartmentItem[] = [
-  { id: 'dep-1', schoolId: 'sch-leaders-cbse', code: 'SCI-01', name: 'Sciences & Laboratories', wing: 'Senior Secondary', headOfDept: 'Dr. Rajesh Sharma', facultyCount: 24, status: 'Active' },
-  { id: 'dep-2', schoolId: 'sch-leaders-cbse', code: 'MAT-02', name: 'Mathematics & Olympiad Wing', wing: 'Middle & Senior', headOfDept: 'Prof. Malini Swaminathan', facultyCount: 18, status: 'Active' },
-  { id: 'dep-3', schoolId: 'sch-leaders-cbse', code: 'HUM-03', name: 'Humanities & Languages', wing: 'All Wings', headOfDept: 'Ms. Kavitha Menon', facultyCount: 22, status: 'Active' },
-  { id: 'dep-4', schoolId: 'sch-leaders-icse', code: 'ICSE-STEM', name: 'ICSE STEM & Robotics', wing: 'Secondary Wing', headOfDept: 'Mr. Aravind Krishnan', facultyCount: 16, status: 'Active' },
-  { id: 'dep-5', schoolId: 'sch-leaders-ib', code: 'IB-DP', name: 'IB Diploma & Theory of Knowledge', wing: 'International Wing', headOfDept: 'Prof. Jonathan Mathews', facultyCount: 14, status: 'Active' },
-  { id: 'dep-6', schoolId: 'sch-leaders-igcse', code: 'CAIE-01', name: 'Cambridge Assessment Faculty', wing: 'IGCSE Lower & Upper', headOfDept: 'Dr. Shalini Rao', facultyCount: 19, status: 'Active' },
-];
+const INITIAL_DEPARTMENTS: DepartmentItem[] = [];
 
-const INITIAL_DOCUMENTS: SchoolDocumentItem[] = [
-  { id: 'doc-1', schoolId: 'sch-leaders-cbse', schoolName: 'The Leaders Academy (CBSE)', docType: 'Affiliation Certificate', title: 'CBSE Senior Secondary Affiliation Renewal', refNo: 'CBSE/AFF/1930812/2026', validUntil: '2030-03-31', status: 'Verified' },
-  { id: 'doc-2', schoolId: 'sch-leaders-cbse', schoolName: 'The Leaders Academy (CBSE)', docType: 'Safety Compliance', title: 'Fire & Building Stability NOC (Chennai HQ)', refNo: 'TN-FIRE-2026-882', validUntil: '2027-03-31', status: 'Verified' },
-  { id: 'doc-3', schoolId: 'sch-leaders-icse', schoolName: 'The Leaders International (ICSE)', docType: 'Board Accreditation', title: 'CISCE Permanent Affiliation Charter', refNo: 'CISCE/TN-0482/PER', validUntil: '2031-03-31', status: 'Verified' },
-  { id: 'doc-4', schoolId: 'sch-leaders-ib', schoolName: 'The Leaders Global Academy (IB)', docType: 'IB World School Charter', title: 'IBO PYP/MYP/DP Authorization', refNo: 'IBO-061942-2025', validUntil: '2028-06-30', status: 'Verified' },
-  { id: 'doc-5', schoolId: 'sch-leaders-igcse', schoolName: 'The Leaders Cambridge School (IGCSE)', docType: 'Cambridge Centre License', title: 'CAIE Registered Examination Centre', refNo: 'CAIE-IN842-2026', validUntil: '2027-05-15', status: 'Renewal Due' },
-];
+const INITIAL_DOCUMENTS: SchoolDocumentItem[] = [];
 
 export const OrganizationManagementModule: React.FC<OrganizationManagementModuleProps> = ({
   subItem,
@@ -78,10 +65,12 @@ export const OrganizationManagementModule: React.FC<OrganizationManagementModule
   onSelectSchoolContext,
 }) => {
   const {
+    organizations,
     schools,
     academicYears,
     educationBoards,
     lockedSchoolId,
+    addOrganization,
     addSchool,
     addCampusToSchool,
     addAcademicYear,
@@ -97,7 +86,7 @@ export const OrganizationManagementModule: React.FC<OrganizationManagementModule
   const [departments, setDepartments] = useState<DepartmentItem[]>(INITIAL_DEPARTMENTS);
   const [documents, setDocuments] = useState<SchoolDocumentItem[]>(INITIAL_DOCUMENTS);
   const [modalMode, setModalMode] = useState<
-    null | 'school' | 'campus' | 'board' | 'year' | 'department' | 'document'
+    null | 'organization' | 'school' | 'campus' | 'board' | 'year' | 'department' | 'document'
   >(null);
   const [configSavedNotice, setConfigSavedNotice] = useState(false);
 
@@ -106,8 +95,9 @@ export const OrganizationManagementModule: React.FC<OrganizationManagementModule
   const [fCode, setFCode] = useState('');
   const [fExtra1, setFExtra1] = useState('');
   const [fExtra2, setFExtra2] = useState('');
+  const [fTargetOrgId, setFTargetOrgId] = useState(organizations[0]?.id || '');
   const [fTargetSchoolId, setFTargetSchoolId] = useState(
-    selectedSchoolId === 'all' ? schools[0]?.id || 'sch-leaders-cbse' : selectedSchoolId
+    selectedSchoolId === 'all' ? schools[0]?.id || '' : selectedSchoolId
   );
 
   // School configuration preview state
@@ -152,15 +142,21 @@ export const OrganizationManagementModule: React.FC<OrganizationManagementModule
       ? documents
       : documents.filter((d) => d.schoolId === selectedSchoolId);
 
-  const openModalForTab = () => {
+  const openModalForTab = (forcedMode?: 'organization' | 'school' | 'campus' | 'board' | 'year' | 'department' | 'document') => {
     setFName('');
     setFCode('');
     setFExtra1('');
     setFExtra2('');
+    setFTargetOrgId(organizations[0]?.id || '');
     setFTargetSchoolId(
-      selectedSchoolId === 'all' ? schools[0]?.id || 'sch-leaders-cbse' : selectedSchoolId
+      selectedSchoolId === 'all' ? schools[0]?.id || '' : selectedSchoolId
     );
-    if (activeTab === 'org-schools') setModalMode('school');
+    if (forcedMode) {
+      setModalMode(forcedMode);
+      return;
+    }
+    if (activeTab === 'org-profile') setModalMode('organization');
+    else if (activeTab === 'org-schools') setModalMode('school');
     else if (activeTab === 'org-boards') setModalMode('board');
     else if (activeTab === 'org-academic-years') setModalMode('year');
     else if (activeTab === 'org-departments') setModalMode('department');
@@ -172,46 +168,45 @@ export const OrganizationManagementModule: React.FC<OrganizationManagementModule
     e.preventDefault();
     if (!fName.trim()) return;
 
-    if (modalMode === 'school') {
+    if (modalMode === 'organization') {
+      const newOrg: OrganizationOption = {
+        id: `org-${Date.now()}`,
+        name: fName.trim(),
+        shortName: fCode.trim() || fName.trim().slice(0, 28),
+        code: (fCode.trim() || fName.trim().slice(0, 6)).toUpperCase().replace(/\s+/g, '-'),
+        regNumber: fExtra1.trim() || `ORG-${Date.now().toString().slice(-5)}`,
+        headquarters: fExtra2.trim() || 'Headquarters',
+      };
+      addOrganization(newOrg);
+    } else if (modalMode === 'school') {
       const boardVal = (fExtra1 || 'CBSE') as SchoolOption['board'];
+      const linkedOrg =
+        organizations.find((o) => o.id === fTargetOrgId) || organizations[0];
       addSchool({
         id: `sch-${Date.now()}`,
-        organizationName: 'The Leaders Group of Schools Trust',
+        organizationId: linkedOrg?.id,
+        organizationName: linkedOrg?.name || 'Primary Organization',
         name: fName.trim(),
-        shortName: fCode.trim() || fName.trim().slice(0, 22),
+        shortName: fCode.trim() || fName.trim().slice(0, 24),
         board: boardVal,
         affiliationNo: fExtra2.trim() || `AFF-${Date.now().toString().slice(-5)}`,
-        campuses: [
-          {
-            id: `cmp-${Date.now()}`,
-            name: `${fName.trim().split(' ')[0]} Main Campus`,
-            code: `CMP-${Date.now().toString().slice(-3)}`,
-            city: 'Chennai',
-            studentCount: 320,
-            staffCount: 36,
-            attendanceRate: 95.1,
-            staffAttendanceRate: 97.4,
-            feeCollectedLakhs: 54.0,
-            feeTargetLakhs: 60.0,
-            pendingAdmissions: 6,
-            appUsers: 350,
-          },
-        ],
+        campuses: [],
       });
     } else if (modalMode === 'campus') {
+      if (!fTargetSchoolId) return;
       addCampusToSchool(fTargetSchoolId, {
         id: `cmp-${Date.now()}`,
         name: fName.trim(),
         code: fCode.trim().toUpperCase() || `CMP-${Date.now().toString().slice(-3)}`,
-        city: fExtra1.trim() || 'Chennai',
-        studentCount: 240,
-        staffCount: 28,
-        attendanceRate: 95.0,
-        staffAttendanceRate: 97.0,
-        feeCollectedLakhs: 42.0,
-        feeTargetLakhs: 48.0,
-        pendingAdmissions: 5,
-        appUsers: 265,
+        city: fExtra1.trim() || 'Main Location',
+        studentCount: 0,
+        staffCount: 0,
+        attendanceRate: 0,
+        staffAttendanceRate: 0,
+        feeCollectedLakhs: 0,
+        feeTargetLakhs: 0,
+        pendingAdmissions: 0,
+        appUsers: 0,
       });
     } else if (modalMode === 'board') {
       addEducationBoard({
@@ -225,14 +220,15 @@ export const OrganizationManagementModule: React.FC<OrganizationManagementModule
       });
     } else if (modalMode === 'year') {
       const code = fName.trim();
-      const [startYr = '2027', endYr = '2028'] = code.split('-');
+      const [startYr = '2026', endYr = '2027'] = code.split('-');
       addAcademicYear({
         id: code,
         label: `AY ${startYr}–${endYr}`,
         startDate: `${startYr}-04-01`,
         endDate: `${endYr}-03-31`,
-        status: 'Upcoming',
-        multiplier: 1.05,
+        status: academicYears.length === 0 ? 'Active' : 'Upcoming',
+        isActive: academicYears.length === 0,
+        multiplier: 1,
       });
     } else if (modalMode === 'department') {
       setDepartments((prev) => [
@@ -243,13 +239,14 @@ export const OrganizationManagementModule: React.FC<OrganizationManagementModule
           name: fName.trim(),
           wing: fExtra1.trim() || 'All Wings',
           headOfDept: fExtra2.trim() || 'Pending Appointment',
-          facultyCount: 8,
+          facultyCount: 0,
           status: 'Active',
         },
         ...prev,
       ]);
     } else if (modalMode === 'document') {
       const targetSchool = schools.find((s) => s.id === fTargetSchoolId) || schools[0];
+      if (!targetSchool) return;
       setDocuments((prev) => [
         {
           id: `doc-${Date.now()}`,
@@ -539,7 +536,9 @@ export const OrganizationManagementModule: React.FC<OrganizationManagementModule
   ];
 
   const primaryActionLabel =
-    activeTab === 'org-schools'
+    activeTab === 'org-profile'
+      ? 'Create Organization'
+      : activeTab === 'org-schools'
       ? 'Add School'
       : activeTab === 'org-boards'
       ? 'Add Education Board'
@@ -582,7 +581,7 @@ export const OrganizationManagementModule: React.FC<OrganizationManagementModule
             )}
             <button
               type="button"
-              onClick={openModalForTab}
+              onClick={() => openModalForTab()}
               className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-[#0B1F3A] hover:bg-[#132E54] text-white text-xs font-semibold transition-colors cursor-pointer"
             >
               <Plus className="w-3.5 h-3.5 text-[#D4AF37]" />
@@ -596,7 +595,7 @@ export const OrganizationManagementModule: React.FC<OrganizationManagementModule
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <EnterpriseMetricCard
           label="Organizations / Trusts"
-          value={2}
+          value={organizations.length}
           detail="Centralized Multi-School Governance"
           icon={Building2}
           tone="navy"
@@ -626,69 +625,74 @@ export const OrganizationManagementModule: React.FC<OrganizationManagementModule
 
       {/* Organization Profile */}
       {activeTab === 'org-profile' && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <div className="bg-white border border-slate-200/80 rounded-xl p-5 space-y-3">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-[#9A7418]">
-                  Primary Educational Trust · Reg #TN-TRUST-2004-882
-                </p>
-                <h3 className="text-base font-bold text-[#0B1F3A] mt-0.5">
-                  The Leaders Group of Schools Trust
-                </h3>
-              </div>
-              <span className="text-xs font-semibold text-emerald-700">Active</span>
+        organizations.length === 0 ? (
+          <div className="bg-white border border-dashed border-slate-300 rounded-xl p-8 text-center space-y-3">
+            <div className="w-11 h-11 rounded-xl bg-[#0B1F3A]/8 text-[#0B1F3A] flex items-center justify-center mx-auto">
+              <Building2 className="w-5 h-5" />
             </div>
-            <p className="text-xs text-slate-600 leading-relaxed">
-              Governs K-12 CBSE and ICSE institutions across Chennai metropolitan campuses with isolated school ledgers, centralized Super Admin controls, and standardized curriculum frameworks.
-            </p>
-            <div className="pt-3 border-t border-slate-100 grid grid-cols-3 gap-3 text-xs">
-              <div>
-                <p className="text-slate-500 text-[11px]">Schools</p>
-                <p className="font-bold text-[#0B1F3A] tabular-nums mt-0.5">2 Schools</p>
-              </div>
-              <div>
-                <p className="text-slate-500 text-[11px]">Campuses</p>
-                <p className="font-bold text-[#0B1F3A] tabular-nums mt-0.5">5 Campuses</p>
-              </div>
-              <div>
-                <p className="text-slate-500 text-[11px]">Headquarters</p>
-                <p className="font-bold text-[#0B1F3A] mt-0.5">Chennai, TN</p>
-              </div>
+            <div>
+              <h3 className="text-sm font-bold text-[#0B1F3A]">
+                No Organizations Created Yet
+              </h3>
+              <p className="text-xs text-slate-500 mt-1 max-w-md mx-auto">
+                Start by creating your primary educational trust or organization. Once created, you can register affiliated schools, campuses, and academic years under it.
+              </p>
             </div>
+            <button
+              type="button"
+              onClick={() => openModalForTab('organization')}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-[#0B1F3A] hover:bg-[#132E54] text-white text-xs font-semibold cursor-pointer"
+            >
+              <Plus className="w-3.5 h-3.5 text-[#D4AF37]" />
+              <span>Create Organization</span>
+            </button>
           </div>
-
-          <div className="bg-white border border-slate-200/80 rounded-xl p-5 space-y-3">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-[#9A7418]">
-                  International Foundation · Reg #IB-FND-2016-410
-                </p>
-                <h3 className="text-base font-bold text-[#0B1F3A] mt-0.5">
-                  Leaders Global Baccalaureate Foundation
-                </h3>
-              </div>
-              <span className="text-xs font-semibold text-emerald-700">Active</span>
-            </div>
-            <p className="text-xs text-slate-600 leading-relaxed">
-              Operates IB World School and Cambridge IGCSE campuses across Chennai and Bengaluru with dedicated residential hostels, global assessment analytics, and multi-board compliance.
-            </p>
-            <div className="pt-3 border-t border-slate-100 grid grid-cols-3 gap-3 text-xs">
-              <div>
-                <p className="text-slate-500 text-[11px]">Schools</p>
-                <p className="font-bold text-[#0B1F3A] tabular-nums mt-0.5">2 Schools</p>
-              </div>
-              <div>
-                <p className="text-slate-500 text-[11px]">Campuses</p>
-                <p className="font-bold text-[#0B1F3A] tabular-nums mt-0.5">4 Campuses</p>
-              </div>
-              <div>
-                <p className="text-slate-500 text-[11px]">Regions</p>
-                <p className="font-bold text-[#0B1F3A] mt-0.5">Chennai · BLR</p>
-              </div>
-            </div>
+        ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {organizations.map((org) => {
+              const orgSchools = schools.filter((s) => resolveSchoolOrgId(s) === org.id);
+              const orgCampuses = orgSchools.reduce((acc, s) => acc + s.campuses.length, 0);
+              return (
+                <div
+                  key={org.id}
+                  className="bg-white border border-slate-200/80 rounded-xl p-5 space-y-3"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-[11px] font-semibold uppercase tracking-wider text-[#9A7418]">
+                        {org.code} · Reg #{org.regNumber}
+                      </p>
+                      <h3 className="text-base font-bold text-[#0B1F3A] mt-0.5">
+                        {org.name}
+                      </h3>
+                    </div>
+                    <span className="text-xs font-semibold text-emerald-700">Active</span>
+                  </div>
+                  <div className="pt-3 border-t border-slate-100 grid grid-cols-3 gap-3 text-xs">
+                    <div>
+                      <p className="text-slate-500 text-[11px]">Schools</p>
+                      <p className="font-bold text-[#0B1F3A] tabular-nums mt-0.5">
+                        {orgSchools.length} {orgSchools.length === 1 ? 'School' : 'Schools'}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-slate-500 text-[11px]">Campuses</p>
+                      <p className="font-bold text-[#0B1F3A] tabular-nums mt-0.5">
+                        {orgCampuses} {orgCampuses === 1 ? 'Campus' : 'Campuses'}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-slate-500 text-[11px]">Headquarters</p>
+                      <p className="font-bold text-[#0B1F3A] mt-0.5 truncate">
+                        {org.headquarters}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
-        </div>
+        )
       )}
 
       {(activeTab === 'org-profile' || activeTab === 'org-schools') && (
@@ -872,41 +876,65 @@ export const OrganizationManagementModule: React.FC<OrganizationManagementModule
       )}
 
       {activeTab === 'org-academic-years' && (
-        <div className="bg-white border border-slate-200/80 rounded-xl divide-y divide-slate-100">
-          {academicYears.map((yr) => (
-            <div
-              key={yr.id}
-              className="px-5 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
-            >
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-lg bg-[#0B1F3A]/6 border border-[#0B1F3A]/10 flex items-center justify-center text-[#0B1F3A]">
-                  <Calendar className="w-4 h-4" />
-                </div>
-                <div>
-                  <p className="text-sm font-bold text-[#0B1F3A] tabular-nums">{yr.label}</p>
-                  <p className="text-[11px] text-slate-500">
-                    Session Window: {yr.startDate} to {yr.endDate}
-                  </p>
-                </div>
-              </div>
-              <span
-                className={`text-xs font-semibold ${
-                  yr.status === 'Active'
-                    ? 'text-emerald-700'
-                    : yr.status === 'Upcoming'
-                    ? 'text-[#9A7418]'
-                    : 'text-slate-500'
-                }`}
-              >
-                {yr.status === 'Active'
-                  ? 'Current Active Session'
-                  : yr.status === 'Upcoming'
-                  ? 'Scheduled Upcoming Session'
-                  : 'Archived Ledger'}
-              </span>
+        academicYears.length === 0 ? (
+          <div className="bg-white border border-dashed border-slate-300 rounded-xl p-8 text-center space-y-3">
+            <div className="w-11 h-11 rounded-xl bg-[#0B1F3A]/8 text-[#0B1F3A] flex items-center justify-center mx-auto">
+              <Calendar className="w-5 h-5" />
             </div>
-          ))}
-        </div>
+            <div>
+              <h3 className="text-sm font-bold text-[#0B1F3A]">
+                No Academic Years Configured
+              </h3>
+              <p className="text-xs text-slate-500 mt-1">
+                Create an academic year (for example, 2026-2027) to activate session filters across the ERP.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => openModalForTab('year')}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-[#0B1F3A] hover:bg-[#132E54] text-white text-xs font-semibold cursor-pointer"
+            >
+              <Plus className="w-3.5 h-3.5 text-[#D4AF37]" />
+              <span>Add Academic Year</span>
+            </button>
+          </div>
+        ) : (
+          <div className="bg-white border border-slate-200/80 rounded-xl divide-y divide-slate-100">
+            {academicYears.map((yr) => (
+              <div
+                key={yr.id}
+                className="px-5 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-lg bg-[#0B1F3A]/6 border border-[#0B1F3A]/10 flex items-center justify-center text-[#0B1F3A]">
+                    <Calendar className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold text-[#0B1F3A] tabular-nums">{yr.label}</p>
+                    <p className="text-[11px] text-slate-500">
+                      Session Window: {yr.startDate} to {yr.endDate}
+                    </p>
+                  </div>
+                </div>
+                <span
+                  className={`text-xs font-semibold ${
+                    yr.status === 'Active'
+                      ? 'text-emerald-700'
+                      : yr.status === 'Upcoming'
+                      ? 'text-[#9A7418]'
+                      : 'text-slate-500'
+                  }`}
+                >
+                  {yr.status === 'Active'
+                    ? 'Current Active Session'
+                    : yr.status === 'Upcoming'
+                    ? 'Scheduled Upcoming Session'
+                    : 'Archived Ledger'}
+                </span>
+              </div>
+            ))}
+          </div>
+        )
       )}
 
       {activeTab === 'org-departments' && (
@@ -930,7 +958,9 @@ export const OrganizationManagementModule: React.FC<OrganizationManagementModule
         isOpen={modalMode !== null}
         onClose={() => setModalMode(null)}
         title={
-          modalMode === 'school'
+          modalMode === 'organization'
+            ? 'Create New Organization / Educational Trust'
+            : modalMode === 'school'
             ? 'Register New Affiliated School'
             : modalMode === 'board'
             ? 'Add Education Board'
@@ -942,29 +972,56 @@ export const OrganizationManagementModule: React.FC<OrganizationManagementModule
             ? 'Register Compliance Document'
             : 'Register New Campus Branch'
         }
-        subtitle="Immediately updates the multi-school selector & local ERP preview state"
+        subtitle="Persists immediately to the TLGS-ERP institutional hierarchy"
       >
         <form onSubmit={handleModalSubmit} className="space-y-4 text-xs">
-          {(modalMode === 'campus' || modalMode === 'department' || modalMode === 'document') && (
+          {modalMode === 'school' && organizations.length > 0 && (
             <div>
-              <label className="block font-semibold text-[#0B1F3A] mb-1">Target School *</label>
+              <label className="block font-semibold text-[#0B1F3A] mb-1">
+                Parent Organization *
+              </label>
               <select
-                value={fTargetSchoolId}
-                onChange={(e) => setFTargetSchoolId(e.target.value)}
+                value={fTargetOrgId || organizations[0]?.id || ''}
+                onChange={(e) => setFTargetOrgId(e.target.value)}
                 className="w-full px-3 py-2 bg-[#F8FAFC] border border-slate-300 rounded-lg"
               >
-                {schools.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name}
+                {organizations.map((org) => (
+                  <option key={org.id} value={org.id}>
+                    {org.name}
                   </option>
                 ))}
               </select>
             </div>
           )}
 
+          {(modalMode === 'campus' || modalMode === 'department' || modalMode === 'document') && (
+            <div>
+              <label className="block font-semibold text-[#0B1F3A] mb-1">Target School *</label>
+              {schools.length === 0 ? (
+                <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                  Please create a School first before adding a campus, department, or document.
+                </p>
+              ) : (
+                <select
+                  value={fTargetSchoolId || schools[0]?.id || ''}
+                  onChange={(e) => setFTargetSchoolId(e.target.value)}
+                  className="w-full px-3 py-2 bg-[#F8FAFC] border border-slate-300 rounded-lg"
+                >
+                  {schools.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+          )}
+
           <div>
             <label className="block font-semibold text-[#0B1F3A] mb-1">
-              {modalMode === 'year'
+              {modalMode === 'organization'
+                ? 'Organization / Trust Full Name *'
+                : modalMode === 'year'
                 ? 'Academic Year Code (YYYY-YYYY) *'
                 : modalMode === 'school'
                 ? 'School Full Name *'
@@ -982,8 +1039,10 @@ export const OrganizationManagementModule: React.FC<OrganizationManagementModule
               value={fName}
               onChange={(e) => setFName(e.target.value)}
               placeholder={
-                modalMode === 'year'
-                  ? '2027-2028'
+                modalMode === 'organization'
+                  ? 'e.g. The Leaders Educational Trust'
+                  : modalMode === 'year'
+                  ? '2026-2027'
                   : modalMode === 'school'
                   ? 'e.g. The Leaders Matriculation School'
                   : modalMode === 'board'
@@ -991,8 +1050,8 @@ export const OrganizationManagementModule: React.FC<OrganizationManagementModule
                   : modalMode === 'document'
                   ? 'e.g. Sanitary & Fire Safety Certificate'
                   : modalMode === 'department'
-                  ? 'e.g. Performing Arts & Music'
-                  : 'e.g. East Coast Annex Campus'
+                  ? 'e.g. Science & Mathematics'
+                  : 'e.g. Main Campus'
               }
               className="w-full px-3 py-2 bg-[#F8FAFC] border border-slate-300 rounded-lg focus:outline-none focus:border-[#0B1F3A] focus:bg-white"
             />
@@ -1002,7 +1061,9 @@ export const OrganizationManagementModule: React.FC<OrganizationManagementModule
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block font-semibold text-[#0B1F3A] mb-1">
-                  {modalMode === 'school'
+                  {modalMode === 'organization'
+                    ? 'Short Name / Code'
+                    : modalMode === 'school'
                     ? 'Short Display Name'
                     : modalMode === 'document'
                     ? 'Reference No.'
@@ -1012,14 +1073,22 @@ export const OrganizationManagementModule: React.FC<OrganizationManagementModule
                   type="text"
                   value={fCode}
                   onChange={(e) => setFCode(e.target.value)}
-                  placeholder={modalMode === 'school' ? 'Leaders State' : 'CODE-01'}
+                  placeholder={
+                    modalMode === 'organization'
+                      ? 'LEADERS-TRUST'
+                      : modalMode === 'school'
+                      ? 'Short Name'
+                      : 'CODE-01'
+                  }
                   className="w-full px-3 py-2 bg-[#F8FAFC] border border-slate-300 rounded-lg font-mono"
                 />
               </div>
 
               <div>
                 <label className="block font-semibold text-[#0B1F3A] mb-1">
-                  {modalMode === 'school'
+                  {modalMode === 'organization'
+                    ? 'Registration Number'
+                    : modalMode === 'school'
                     ? 'Education Board'
                     : modalMode === 'board'
                     ? 'Affiliation Body'
@@ -1047,11 +1116,13 @@ export const OrganizationManagementModule: React.FC<OrganizationManagementModule
                     value={fExtra1}
                     onChange={(e) => setFExtra1(e.target.value)}
                     placeholder={
-                      modalMode === 'board'
+                      modalMode === 'organization'
+                        ? 'e.g. REG-2026-001'
+                        : modalMode === 'board'
                         ? 'Ministry / Council'
                         : modalMode === 'document'
                         ? 'Safety / Affiliation'
-                        : 'Chennai'
+                        : 'City'
                     }
                     className="w-full px-3 py-2 bg-[#F8FAFC] border border-slate-300 rounded-lg"
                   />
@@ -1060,13 +1131,16 @@ export const OrganizationManagementModule: React.FC<OrganizationManagementModule
             </div>
           )}
 
-          {(modalMode === 'school' ||
+          {(modalMode === 'organization' ||
+            modalMode === 'school' ||
             modalMode === 'board' ||
             modalMode === 'department' ||
             modalMode === 'document') && (
             <div>
               <label className="block font-semibold text-[#0B1F3A] mb-1">
-                {modalMode === 'school'
+                {modalMode === 'organization'
+                  ? 'Headquarters / City'
+                  : modalMode === 'school'
                   ? 'Affiliation Number'
                   : modalMode === 'board'
                   ? 'Grading Scale'
@@ -1079,13 +1153,15 @@ export const OrganizationManagementModule: React.FC<OrganizationManagementModule
                 value={fExtra2}
                 onChange={(e) => setFExtra2(e.target.value)}
                 placeholder={
-                  modalMode === 'school'
-                    ? 'e.g. 1930999'
+                  modalMode === 'organization'
+                    ? 'e.g. City, State'
+                    : modalMode === 'school'
+                    ? 'e.g. AFF-1001'
                     : modalMode === 'board'
                     ? 'e.g. 9-Point Scale'
                     : modalMode === 'document'
                     ? '2029-03-31'
-                    : 'e.g. Prof. S. Krishnan'
+                    : 'Department Head Name'
                 }
                 className="w-full px-3 py-2 bg-[#F8FAFC] border border-slate-300 rounded-lg"
               />

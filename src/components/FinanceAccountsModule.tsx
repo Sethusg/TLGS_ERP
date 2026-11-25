@@ -34,20 +34,9 @@ interface LedgerVoucher {
   status: 'Posted' | 'Pending Audit';
 }
 
-const INITIAL_VOUCHERS: LedgerVoucher[] = [
-  { id: 'vch-1', voucherNo: 'JV-2026-1041', date: '2026-10-23', accountHead: 'Tuition Fee Receipts', description: 'Term 2 Online UPI Settlement Batch #44', type: 'Credit', amount: 642500, status: 'Posted' },
-  { id: 'vch-2', voucherNo: 'PV-2026-1042', date: '2026-10-22', accountHead: 'Transport Fleet Fuel', description: 'IndianOil Fleet Diesel Card Top-up', type: 'Debit', amount: 118400, status: 'Posted' },
-  { id: 'vch-3', voucherNo: 'JV-2026-1043', date: '2026-10-22', accountHead: 'Canteen POS Settlement', description: 'Daily Campus Canteen Smart Wallet Sales', type: 'Credit', amount: 48920, status: 'Posted' },
-  { id: 'vch-4', voucherNo: 'PV-2026-1044', date: '2026-10-21', accountHead: 'Science Lab Consumables', description: 'Borosil Glassware & Reagents Invoice #912', type: 'Debit', amount: 76300, status: 'Pending Audit' },
-  { id: 'vch-5', voucherNo: 'PV-2026-1045', date: '2026-10-20', accountHead: 'Campus Utilities', description: 'TANGEDCO HT Power Bill — Main Campus', type: 'Debit', amount: 184200, status: 'Posted' },
-];
+const INITIAL_VOUCHERS: LedgerVoucher[] = [];
 
-const BUDGET_HEADS = [
-  { id: 'bdg-1', head: 'Faculty & Staff Payroll', allocated: 520, utilized: 382, unit: 'Lakhs' },
-  { id: 'bdg-2', head: 'Academic Labs & IT Infrastructure', allocated: 85, utilized: 61.5, unit: 'Lakhs' },
-  { id: 'bdg-3', head: 'Transport Fleet Operations', allocated: 64, utilized: 47.2, unit: 'Lakhs' },
-  { id: 'bdg-4', head: 'Campus Maintenance & Utilities', allocated: 48, utilized: 35.8, unit: 'Lakhs' },
-];
+const BUDGET_HEADS: { id: string; head: string; allocated: number; utilized: number; unit: string }[] = [];
 
 export const FinanceAccountsModule: React.FC<FinanceAccountsModuleProps> = ({
   subItem,

@@ -28,6 +28,7 @@ import {
   Sparkles,
   Compass,
   Cpu,
+  ShoppingCart,
 } from 'lucide-react';
 import {
   ErpRole,
@@ -75,6 +76,7 @@ export const MENU_ICON_REGISTRY: Record<
   Sparkles,
   Compass,
   Cpu,
+  ShoppingCart,
 };
 
 export const MENU_ICON_NAMES = Object.keys(MENU_ICON_REGISTRY) as MenuIconName[];
@@ -86,10 +88,7 @@ export function getMenuIconComponent(
   return MENU_ICON_REGISTRY[iconName] || FolderKanban;
 }
 
-export const DEFAULT_ORGANIZATIONS = [
-  { id: 'org-leaders-trust', name: 'Leaders Educational Trust' },
-  { id: 'org-global-ib', name: 'Global Baccalaureate Foundation' },
-];
+export const DEFAULT_ORGANIZATIONS: { id: string; name: string }[] = [];
 
 const BUILTIN_ICON_MAP: Partial<Record<NavSection, MenuIconName>> = {
   HOME: 'LayoutDashboard',
@@ -106,6 +105,7 @@ const BUILTIN_ICON_MAP: Partial<Record<NavSection, MenuIconName>> = {
   TRANSPORT: 'Bus',
   HOSTEL: 'BedDouble',
   INVENTORY: 'Boxes',
+  POS: 'ShoppingCart',
   COMMUNICATIONS: 'MessageSquare',
   REPORTS: 'BarChart3',
   ADMIN: 'ShieldCheck',
@@ -403,6 +403,36 @@ export const MAIN_ERP_MENUS: MainMenuItemDef[] = [
   },
   {
     index: 15,
+    id: 'POS',
+    label: 'POS – Point of Sale',
+    shortLabel: 'Point of Sale',
+    description: 'Retail billing, barcode checkout, GST invoicing, purchases, inventory, returns, cash registers, and POS analytics',
+    icon: ShoppingCart,
+    subItems: [
+      { label: 'POS Dashboard', actionId: 'pos-dashboard' },
+      { label: 'New Sale / Billing', actionId: 'pos-billing' },
+      { label: 'Sales History', actionId: 'pos-sales' },
+      { label: 'Sales Returns', actionId: 'pos-returns' },
+      { label: 'Products', actionId: 'pos-products' },
+      { label: 'Product Categories', actionId: 'pos-categories' },
+      { label: 'Brands', actionId: 'pos-brands' },
+      { label: 'Barcode Management', actionId: 'pos-barcodes' },
+      { label: 'Stock Management', actionId: 'pos-stock' },
+      { label: 'Purchase Management', actionId: 'pos-purchases' },
+      { label: 'Suppliers', actionId: 'pos-suppliers' },
+      { label: 'Customers', actionId: 'pos-customers' },
+      { label: 'Payments', actionId: 'pos-payments' },
+      { label: 'Expenses', actionId: 'pos-expenses' },
+      { label: 'Cash Register', actionId: 'pos-register' },
+      { label: 'Discounts', actionId: 'pos-discounts' },
+      { label: 'GST / Tax Management', actionId: 'pos-gst' },
+      { label: 'Inventory Transfers', actionId: 'pos-transfers' },
+      { label: 'POS Reports', actionId: 'pos-reports' },
+      { label: 'POS Settings', actionId: 'pos-settings' },
+    ],
+  },
+  {
+    index: 16,
     id: 'COMMUNICATIONS',
     label: 'Communication Management',
     shortLabel: 'Communications',
@@ -420,7 +450,7 @@ export const MAIN_ERP_MENUS: MainMenuItemDef[] = [
     ],
   },
   {
-    index: 16,
+    index: 17,
     id: 'REPORTS',
     label: 'Reports and Analytics',
     shortLabel: 'Reports',
@@ -441,11 +471,11 @@ export const MAIN_ERP_MENUS: MainMenuItemDef[] = [
     ],
   },
   {
-    index: 17,
+    index: 18,
     id: 'ADMIN',
     label: 'System Administration',
     shortLabel: 'System Admin',
-    description: 'Users, 19 roles, CRUD permissions, menus, settings, MySQL schema, audit logs & backups',
+    description: 'Users, roles, CRUD & POS permissions, menus, settings, MySQL schema, audit logs & backups',
     icon: ShieldCheck,
     subItems: [
       { label: 'User Management', actionId: 'admin-users' },

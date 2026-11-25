@@ -1,0 +1,1 @@
+"""Students & Admissions Django app."""

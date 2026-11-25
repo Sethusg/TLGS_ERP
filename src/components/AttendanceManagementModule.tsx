@@ -25,13 +25,15 @@ interface AttendanceManagementModuleProps {
 
 type AttendanceMark = 'Present' | 'Absent' | 'Late';
 
-const BIOMETRIC_LOGS = [
-  { id: 'bio-1', time: '08:04 AM', person: 'Dr. Rajesh Sharma', role: 'Staff', gate: 'Main Academic Gate', mode: 'Biometric RFID', status: 'Checked In' },
-  { id: 'bio-2', time: '08:11 AM', person: 'Aarav Subramanian', role: 'Student · 10-A', gate: 'North Bus Bay', mode: 'QR Smart Card', status: 'Checked In' },
-  { id: 'bio-3', time: '08:16 AM', person: 'Diya Krishnan', role: 'Student · 10-A', gate: 'Main Academic Gate', mode: 'QR Smart Card', status: 'Checked In' },
-  { id: 'bio-4', time: '08:22 AM', person: 'Prof. Malini Sundaram', role: 'Staff', gate: 'Faculty Lobby', mode: 'Biometric RFID', status: 'Checked In' },
-  { id: 'bio-5', time: '08:41 AM', person: 'Rohan Iyer', role: 'Student · 9-B', gate: 'Main Academic Gate', mode: 'QR Smart Card', status: 'Late Entry' },
-];
+const BIOMETRIC_LOGS: {
+  id: string;
+  time: string;
+  person: string;
+  role: string;
+  gate: string;
+  mode: string;
+  status: string;
+}[] = [];
 
 export const AttendanceManagementModule: React.FC<AttendanceManagementModuleProps> = ({
   subItem,

@@ -26,72 +26,9 @@ interface CommunicationsModuleProps {
   staffList: Staff[];
 }
 
-const INITIAL_TEMPLATES: CommunicationTemplate[] = [
-  {
-    id: 'tpl-1',
-    title: 'Monthly Fee Due Reminder',
-    category: 'Fee Reminder',
-    subject: 'Urgent: Pending School Fee Dues for Academic Term 2026',
-    body: 'Dear Parent, This is a reminder that the tuition and transport fee dues for your ward are pending. Kindly clear the dues before the end of this month to avoid late penalties.',
-  },
-  {
-    id: 'tpl-2',
-    title: 'Mid-Term Exam Schedule Notice',
-    category: 'Exam Notice',
-    subject: 'CBSE Mid-Term Assessment Schedule & Guidelines 2026',
-    body: 'Dear Students and Parents, The Mid-Term assessments commence from next month. Please check the portal for subject-wise datesheets and reporting times.',
-  },
-  {
-    id: 'tpl-3',
-    title: 'Parent-Teacher Meeting (PTM) Invitation',
-    category: 'PTM Invite',
-    subject: 'Invitation: Parent-Teacher Interaction & Progress Report Discussion',
-    body: 'Dear Parents, You are cordially invited to attend the interactive PTM this Saturday between 09:00 AM and 01:00 PM to discuss student academic progress.',
-  },
-  {
-    id: 'tpl-4',
-    title: 'National Holiday Circular',
-    category: 'General Circular',
-    subject: 'Holiday Declaration: Observance of National Festival',
-    body: 'Please note that the institution will remain closed on the upcoming Friday in observance of the national holiday. Regular classes resume on Monday.',
-  },
-];
+const INITIAL_TEMPLATES: CommunicationTemplate[] = [];
 
-const INITIAL_MESSAGES: CommunicationMessage[] = [
-  {
-    id: 'msg-1',
-    timestamp: '24 Oct 2026, 10:30 AM',
-    senderName: 'Dr. Sethu Ramanathan (Principal)',
-    channel: 'Email',
-    targetGroup: 'Class 10-A (Parents)',
-    subject: 'CBSE Board Exam Preparation Guidelines',
-    body: 'Dear parents, special remedial classes for Class 10 board students commence this Monday.',
-    recipientCount: 42,
-    status: 'Delivered',
-  },
-  {
-    id: 'msg-2',
-    timestamp: '23 Oct 2026, 02:15 PM',
-    senderName: 'Accountant (Mr. Sridhar)',
-    channel: 'SMS',
-    targetGroup: 'All Pending Fee Defaulters',
-    subject: 'Fee Dues Reminder',
-    body: 'Kindly pay your quarterly school dues immediately.',
-    recipientCount: 18,
-    status: 'Delivered',
-  },
-  {
-    id: 'msg-3',
-    timestamp: '22 Oct 2026, 09:00 AM',
-    senderName: 'HR Department',
-    channel: 'Internal Notification',
-    targetGroup: 'All Teachers',
-    subject: 'Monthly Staff Meeting',
-    body: 'Staff meeting scheduled in the conference hall at 03:30 PM today.',
-    recipientCount: 55,
-    status: 'Delivered',
-  },
-];
+const INITIAL_MESSAGES: CommunicationMessage[] = [];
 
 export const CommunicationsModule: React.FC<CommunicationsModuleProps> = ({
   initialSubItem = 'comm-broadcast',

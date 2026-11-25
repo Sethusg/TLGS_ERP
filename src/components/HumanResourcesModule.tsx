@@ -33,12 +33,7 @@ interface JobOpening {
   stage: 'Screening' | 'Demo Class' | 'Offer Extended';
 }
 
-const INITIAL_OPENINGS: JobOpening[] = [
-  { id: 'job-1', roleTitle: 'PGT Physics Faculty', department: 'Sciences', campus: 'Main Campus (Chennai HQ)', applicants: 14, stage: 'Demo Class' },
-  { id: 'job-2', roleTitle: 'IB Mathematics Coordinator', department: 'Mathematics', campus: 'ECR Heritage Campus', applicants: 9, stage: 'Screening' },
-  { id: 'job-3', roleTitle: 'Student Wellness Counselor', department: 'Student Affairs', campus: 'North Wing (Adambakkam)', applicants: 11, stage: 'Offer Extended' },
-  { id: 'job-4', roleTitle: 'Robotics Lab Instructor', department: 'Computer Science', campus: 'Velachery Global Campus', applicants: 18, stage: 'Screening' },
-];
+const INITIAL_OPENINGS: JobOpening[] = [];
 
 export const HumanResourcesModule: React.FC<HumanResourcesModuleProps> = ({
   subItem,

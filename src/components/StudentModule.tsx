@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { Student } from '../types';
 import { printElement } from '../utils/printDocument';
+import { ResponsiveRegistrationForm } from './ResponsiveRegistrationForm';
 
 interface StudentModuleProps {
   students: Student[];
@@ -36,15 +37,23 @@ export const StudentModule: React.FC<StudentModuleProps> = ({
   onSelectStudent,
   onAddStudent,
 }) => {
-  const [activeTab, setActiveTab] = useState<'details' | 'report' | 'bulk' | 'attendance' | 'add'>(
-    subItem === 'student-report'
-      ? 'report'
-      : subItem === 'student-bulk-update'
-      ? 'bulk'
-      : subItem === 'student-attendance'
-      ? 'attendance'
-      : 'details'
+  const resolveTabFromSubItem = (
+    item: string
+  ): 'details' | 'report' | 'bulk' | 'attendance' | 'add' => {
+    if (item === 'student-new-admission') return 'add';
+    if (item === 'student-report') return 'report';
+    if (item === 'student-bulk-update') return 'bulk';
+    if (item === 'student-attendance') return 'attendance';
+    return 'details';
+  };
+
+  const [activeTab, setActiveTab] = useState<'details' | 'report' | 'bulk' | 'attendance' | 'add'>(() =>
+    resolveTabFromSubItem(subItem)
   );
+
+  useEffect(() => {
+    setActiveTab(resolveTabFromSubItem(subItem));
+  }, [subItem]);
 
   const [search, setSearch] = useState('');
   const [gradeFilter, setGradeFilter] = useState('ALL');
@@ -208,13 +217,14 @@ export const StudentModule: React.FC<StudentModuleProps> = ({
           </div>
 
           <button
+            type="button"
             onClick={() => setActiveTab('add')}
-            className={`flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold rounded-lg transition-colors shadow-2xs shrink-0 ${
-              activeTab === 'add' ? 'bg-[#d81b60] text-white' : 'bg-[#e91e63] hover:bg-[#d81b60] text-white'
+            className={`flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold rounded-lg transition-colors shadow-2xs shrink-0 cursor-pointer ${
+              activeTab === 'add' ? 'bg-[#0B1F3A] text-white' : 'bg-[#e91e63] hover:bg-[#d81b60] text-white'
             }`}
           >
             <UserPlus className="w-3.5 h-3.5" />
-            <span>Add Student</span>
+            <span>Registration Form</span>
           </button>
         </div>
       </div>
@@ -752,182 +762,20 @@ export const StudentModule: React.FC<StudentModuleProps> = ({
         </div>
       )}
 
-      {/* VIEW: ADD STUDENT FORM */}
+      {/* VIEW: RESPONSIVE STUDENT REGISTRATION FORM */}
       {activeTab === 'add' && (
-        <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100/80">
-          <div className="border-b border-gray-100 pb-4 mb-4 flex items-center justify-between">
-            <div>
-              <h3 className="text-base font-bold text-gray-900">New Student Registration (CBSE)</h3>
-              <p className="text-xs text-gray-500">Fill in official CBSE student and parent information</p>
-            </div>
-            <button
-              onClick={() => setActiveTab('details')}
-              className="text-xs text-gray-500 hover:text-gray-800"
-            >
-              Cancel
-            </button>
-          </div>
-
-          <form onSubmit={handleCreateStudent} className="space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div>
-                <label className="text-xs font-semibold text-gray-700 block mb-1">
-                  Student Full Name *
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={newName}
-                  onChange={(e) => setNewName(e.target.value)}
-                  placeholder="e.g. Tanvi Deshmukh"
-                  className="w-full px-3 py-1.5 text-xs border border-gray-300 rounded-lg focus:border-[#e91e63] focus:outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="text-xs font-semibold text-gray-700 block mb-1">
-                  Admission Number *
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={newAdmissionNo}
-                  onChange={(e) => setNewAdmissionNo(e.target.value)}
-                  className="w-full px-3 py-1.5 text-xs font-mono border border-gray-300 rounded-lg focus:border-[#e91e63] focus:outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="text-xs font-semibold text-gray-700 block mb-1">
-                  Roll Number
-                </label>
-                <input
-                  type="text"
-                  value={newRollNo}
-                  onChange={(e) => setNewRollNo(e.target.value)}
-                  className="w-full px-3 py-1.5 text-xs font-mono border border-gray-300 rounded-lg focus:border-[#e91e63] focus:outline-none"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-              <div>
-                <label className="text-xs font-semibold text-gray-700 block mb-1">Grade *</label>
-                <select
-                  value={newGrade}
-                  onChange={(e) => setNewGrade(e.target.value)}
-                  className="w-full px-3 py-1.5 text-xs border border-gray-300 rounded-lg focus:outline-none"
-                >
-                  <option>Class 1</option>
-                  <option>Class 2</option>
-                  <option>Class 6</option>
-                  <option>Class 9</option>
-                  <option>Class 10</option>
-                  <option>Class 11</option>
-                  <option>Class 12</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="text-xs font-semibold text-gray-700 block mb-1">Section</label>
-                <select
-                  value={newSection}
-                  onChange={(e) => setNewSection(e.target.value)}
-                  className="w-full px-3 py-1.5 text-xs border border-gray-300 rounded-lg focus:outline-none"
-                >
-                  <option>A</option>
-                  <option>B</option>
-                  <option>C</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="text-xs font-semibold text-gray-700 block mb-1">Gender</label>
-                <select
-                  value={newGender}
-                  onChange={(e) => setNewGender(e.target.value as any)}
-                  className="w-full px-3 py-1.5 text-xs border border-gray-300 rounded-lg focus:outline-none"
-                >
-                  <option value="Male">Male</option>
-                  <option value="Female">Female</option>
-                  <option value="Other">Other</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="text-xs font-semibold text-gray-700 block mb-1">
-                  Date of Birth *
-                </label>
-                <input
-                  type="date"
-                  required
-                  value={newDob}
-                  onChange={(e) => setNewDob(e.target.value)}
-                  className="w-full px-3 py-1.5 text-xs border border-gray-300 rounded-lg focus:outline-none"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div>
-                <label className="text-xs font-semibold text-gray-700 block mb-1">
-                  Father / Guardian Name *
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={newFather}
-                  onChange={(e) => setNewFather(e.target.value)}
-                  placeholder="e.g. Ramesh Deshmukh"
-                  className="w-full px-3 py-1.5 text-xs border border-gray-300 rounded-lg focus:outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="text-xs font-semibold text-gray-700 block mb-1">
-                  Mother Name
-                </label>
-                <input
-                  type="text"
-                  value={newMother}
-                  onChange={(e) => setNewMother(e.target.value)}
-                  placeholder="e.g. Sangeeta Deshmukh"
-                  className="w-full px-3 py-1.5 text-xs border border-gray-300 rounded-lg focus:outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="text-xs font-semibold text-gray-700 block mb-1">
-                  Contact Phone *
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={newPhone}
-                  onChange={(e) => setNewPhone(e.target.value)}
-                  placeholder="+91 98450 ..."
-                  className="w-full px-3 py-1.5 text-xs font-mono border border-gray-300 rounded-lg focus:outline-none"
-                />
-              </div>
-            </div>
-
-            <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
-              <button
-                type="button"
-                onClick={() => setActiveTab('details')}
-                className="px-4 py-2 text-xs font-semibold text-gray-600 hover:bg-gray-100 rounded-lg"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                className="px-5 py-2 text-xs font-semibold text-white bg-[#e91e63] hover:bg-[#d81b60] rounded-lg shadow-2xs"
-              >
-                Register Student Attendance
-              </button>
-            </div>
-          </form>
-        </div>
+        <ResponsiveRegistrationForm
+          mode="student"
+          onRegisterStudent={(student) => {
+            onAddStudent(student);
+            setSuccessMessage(
+              `Registered ${student.name} (${student.admissionNo}) into ${student.grade} - Section ${student.section}.`
+            );
+            setTimeout(() => setSuccessMessage(null), 5000);
+          }}
+          onCancel={() => setActiveTab('details')}
+          onViewDirectory={() => setActiveTab('details')}
+        />
       )}
     </div>
   );

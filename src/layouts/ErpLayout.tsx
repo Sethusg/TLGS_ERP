@@ -19,7 +19,13 @@ interface ErpLayoutProps {
   onSelectSection: (section: NavSection, subItem?: string) => void;
   onLogout: () => void;
   userRole: ErpRole;
-  onSwitchRole: (role: ErpRole) => void;
+  currentUser?: {
+    fullName: string;
+    username: string;
+    email: string;
+    role: string;
+  } | null;
+  onSwitchRole?: (role: ErpRole) => void;
   managedMenus: ManagedMainMenu[];
   permissionMatrix: RolePermissionMatrix;
   menuVisibility: MenuVisibilityMap;
@@ -50,6 +56,7 @@ export const ErpLayout: React.FC<ErpLayoutProps> = ({
   onSelectSection,
   onLogout,
   userRole,
+  currentUser,
   onSwitchRole,
   managedMenus,
   permissionMatrix,
@@ -75,23 +82,43 @@ export const ErpLayout: React.FC<ErpLayoutProps> = ({
   children,
 }) => {
   const {
-    schools,
+    filteredSchools,
+    selectedOrganizationId,
     selectedSchoolId,
     selectedCampusId,
     selectedAcademicYearId,
     activeSchool,
     metrics,
+    setOrganization,
     setSchool,
     setCampus,
     setAcademicYear,
   } = useSchoolContext();
 
+  const [isSlideOverMode, setIsSlideOverMode] = React.useState(false);
+  const [isDesktopDrawerOpen, setIsDesktopDrawerOpen] = React.useState(false);
+
   const activeSchoolShortName = activeSchool
     ? activeSchool.shortName
-    : `All Schools (${schools.length})`;
+    : `All Schools (${filteredSchools.length})`;
+
+  const handleToggleSlideOverMode = () => {
+    setIsSlideOverMode((prev) => {
+      const next = !prev;
+      setIsDesktopDrawerOpen(next);
+      return next;
+    });
+  };
+
+  const handleOpenNavigation = () => {
+    if (isSlideOverMode) {
+      setIsDesktopDrawerOpen(true);
+    }
+    onOpenMobileSidebar();
+  };
 
   return (
-    <div className="min-h-screen bg-[#F4F6F9] text-slate-900 flex antialiased selection:bg-[#D4AF37]/25 selection:text-[#0B1F3A]">
+    <div className="min-h-screen bg-[#F4F6FA] text-[#10213D] flex antialiased selection:bg-[#D6AD52]/25 selection:text-[#10213D]">
       <SidebarNav
         currentSection={currentSection}
         activeSubItem={activeSubItem}
@@ -106,6 +133,11 @@ export const ErpLayout: React.FC<ErpLayoutProps> = ({
         onToggleCollapse={onToggleSidebarCollapse}
         isMobileOpen={isMobileSidebarOpen}
         onCloseMobile={onCloseMobileSidebar}
+        isSlideOverMode={isSlideOverMode}
+        onToggleSlideOverMode={handleToggleSlideOverMode}
+        isDesktopDrawerOpen={isDesktopDrawerOpen}
+        onOpenDesktopDrawer={() => setIsDesktopDrawerOpen(true)}
+        onCloseDesktopDrawer={() => setIsDesktopDrawerOpen(false)}
         navSettings={navSettings}
         onOpenAppearanceModal={onOpenAppearanceModal}
         activeSchoolShortName={activeSchoolShortName}
@@ -118,10 +150,13 @@ export const ErpLayout: React.FC<ErpLayoutProps> = ({
           onSelectSection={onSelectSection}
           onLogout={onLogout}
           userRole={userRole}
+          currentUser={currentUser}
           onSwitchRole={onSwitchRole}
           managedMenus={managedMenus}
           permissionMatrix={permissionMatrix}
           menuVisibility={menuVisibility}
+          selectedOrganizationId={selectedOrganizationId}
+          onOrganizationChange={setOrganization}
           selectedSchoolId={selectedSchoolId}
           onSchoolChange={setSchool}
           selectedCampusId={selectedCampusId}
@@ -139,7 +174,8 @@ export const ErpLayout: React.FC<ErpLayoutProps> = ({
           onOpenQuickAction={onOpenQuickAction}
           onRefresh={onRefresh}
           isRefreshing={isRefreshing}
-          onOpenMobileSidebar={onOpenMobileSidebar}
+          onOpenMobileSidebar={handleOpenNavigation}
+          isSlideOverMode={isSlideOverMode}
           onOpenAppearanceModal={onOpenAppearanceModal}
         />
 

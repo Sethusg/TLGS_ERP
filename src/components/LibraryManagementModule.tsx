@@ -24,12 +24,15 @@ interface LibraryManagementModuleProps {
   onAddBook: (book: Omit<LibraryBook, 'id'>) => void;
 }
 
-const SAMPLE_CIRCULATION = [
-  { id: 'cir-1', member: 'Aarav Subramanian (10-A)', book: 'Concepts of Physics Vol. 1', issueDate: '2026-10-12', dueDate: '2026-10-26', fine: 0, status: 'Issued' },
-  { id: 'cir-2', member: 'Diya Krishnan (10-A)', book: 'Organic Chemistry Reference', issueDate: '2026-10-05', dueDate: '2026-10-19', fine: 40, status: 'Overdue' },
-  { id: 'cir-3', member: 'Prof. Malini Sundaram', book: 'Higher Engineering Mathematics', issueDate: '2026-10-15', dueDate: '2026-11-15', fine: 0, status: 'Issued' },
-  { id: 'cir-4', member: 'Rohan Iyer (9-B)', book: 'World History Compendium', issueDate: '2026-10-02', dueDate: '2026-10-16', fine: 70, status: 'Overdue' },
-];
+const SAMPLE_CIRCULATION: {
+  id: string;
+  member: string;
+  book: string;
+  issueDate: string;
+  dueDate: string;
+  fine: number;
+  status: string;
+}[] = [];
 
 export const LibraryManagementModule: React.FC<LibraryManagementModuleProps> = ({
   subItem,

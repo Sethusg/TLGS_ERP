@@ -1,0 +1,1 @@
+"""Core ERP infrastructure app."""

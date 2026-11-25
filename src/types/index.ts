@@ -25,6 +25,7 @@ export type NavSection =
   | 'SUPPLIES'
   | 'ID_CARDS'
   | 'CANTEEN'
+  | 'POS'
   | 'CUSTOM_MENU';
 
 export type ErpRole =
@@ -46,7 +47,12 @@ export type ErpRole =
   | 'Inventory Manager'
   | 'Front Office Staff'
   | 'Parent'
-  | 'Student';
+  | 'Student'
+  | 'POS Administrator'
+  | 'POS Manager'
+  | 'POS Cashier'
+  | 'POS Inventory Manager'
+  | 'POS Accountant';
 
 export type AccessScope = 'Platform' | 'Organization' | 'School' | 'Campus' | 'Personal';
 
@@ -100,7 +106,8 @@ export type MenuIconName =
   | 'HeartHandshake'
   | 'Sparkles'
   | 'Compass'
-  | 'Cpu';
+  | 'Cpu'
+  | 'ShoppingCart';
 
 export interface ManagedSubMenu {
   id: string;
@@ -426,17 +433,44 @@ export interface SchoolAsset {
   assignedTo?: string;
 }
 
+export type UserAccessScope = 'all_schools' | 'single_school' | 'selected_schools';
+
+export interface DynamicRoleRecord {
+  id: string;
+  code: string;
+  name: ErpRole;
+  scope: 'Platform' | 'Organization' | 'School' | 'Campus' | 'Personal';
+  description: string;
+  isSystemRole: boolean;
+  isActive: boolean;
+}
+
 export interface SystemUser {
   id: string;
   username: string;
   fullName: string;
   email: string;
   phone: string;
+  roleId?: string;
   role: ErpRole;
-  schoolId: string; // 'all' for Platform/Org scope or specific school id
-  campusId: string; // 'all' for Platform/Org/School scope or specific campus id
+  organizationId?: string;
+  accessScope?: UserAccessScope;
+  schoolId: string; // 'all' for Platform/Org scope or primary school id
+  campusId: string; // 'all' for Platform/Org/School scope or primary campus id
+  schoolIds?: string[]; // Multiple authorized schools when accessScope === 'selected_schools'
+  campusIds?: string[]; // Multiple authorized campuses across selected schools
+  academicYearId?: string;
+  classId?: string;
+  section?: string;
+  linkedStudentIds?: string[]; // For Parent role linking to student records
   department?: string;
+  dob?: string;
+  gender?: 'Male' | 'Female' | 'Other';
+  address?: string;
   status: 'Active' | 'Inactive';
+  createdBy?: string;
+  roleAssignedBy?: string;
+  createdDate?: string;
   lastLogin?: string;
   password?: string;
   passwordResetRequired?: boolean;
@@ -474,6 +508,39 @@ export interface TimetableEntry {
   timeSlot: string;
   subjectName: string;
   teacherName: string;
+}
+
+export type AllocationSubjectType = 'Core' | 'Elective' | 'Optional' | 'Language';
+export type AllocationDeliveryType = 'Theory' | 'Practical' | 'Theory & Practical';
+
+export interface SubjectAllocation {
+  id: string;
+  academicYearId: string;
+  academicYearLabel: string;
+  organizationId: string;
+  organizationName: string;
+  schoolId: string;
+  campusId: string;
+  classId: string;
+  className: string;
+  sectionId: string;
+  subjectId: string;
+  subjectName: string;
+  subjectCode: string;
+  subjectType: AllocationSubjectType;
+  assignedTeacherId: string;
+  assignedTeacherName: string;
+  weeklyPeriods: number;
+  totalMarks: number;
+  classification: AllocationDeliveryType;
+  isActive: boolean;
+  isDeleted?: boolean;
+  deletedAt?: string;
+  deletedBy?: string;
+  createdBy: string;
+  updatedBy: string;
+  createdDate: string;
+  updatedDate: string;
 }
 
 export interface NewsItem {
@@ -541,3 +608,5 @@ export interface CommunicationMessage {
   recipientCount: number;
   status: 'Delivered' | 'Queued' | 'Failed';
 }
+
+export * from './pos';

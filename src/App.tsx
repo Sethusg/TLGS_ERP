@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import {
   NavSection,
   Student,
@@ -22,6 +22,8 @@ import {
   NewsItem,
   AuditLog,
   LibraryBook,
+  BusRoute,
+  ExamRecord,
   ErpRole,
   RolePermissionMatrix,
   MenuVisibilityMap,
@@ -31,28 +33,7 @@ import {
   LoginHistoryEntry,
   CrudPermissionSet,
 } from './types';
-import {
-  MULTI_SCHOOL_STUDENTS,
-  MULTI_SCHOOL_STAFF,
-  MULTI_SCHOOL_CLASSES,
-  MULTI_SCHOOL_FEE_RECEIPTS,
-  MULTI_SCHOOL_LIBRARY_BOOKS,
-  MULTI_SCHOOL_ASSETS,
-  MULTI_SCHOOL_EXAMS,
-  MULTI_SCHOOL_BUS_ROUTES,
-  MULTI_SCHOOL_LEAVES,
-  MULTI_SCHOOL_LEADS,
-  MULTI_SCHOOL_CIRCULARS,
-  MULTI_SCHOOL_TC_RECORDS,
-  MULTI_SCHOOL_BIRTHDAYS,
-  MULTI_SCHOOL_SUBJECTS,
-  MULTI_SCHOOL_TIMETABLES,
-  MULTI_SCHOOL_NEWS,
-  MULTI_SCHOOL_AUDIT_LOGS,
-  MULTI_SCHOOL_USERS,
-  INITIAL_LOGIN_HISTORY,
-  filterByTenant,
-} from './data/multiSchoolData';
+import { filterByTenant } from './data/multiSchoolData';
 import {
   DEFAULT_MENU_OPERATION_PERMISSIONS,
   DEFAULT_ROLE_PERMISSIONS,
@@ -60,7 +41,6 @@ import {
   getRoleDefinition,
 } from './config/rbac';
 import { createInitialManagedMenus } from './config/navigation';
-import { getCampusNameById, getSchoolNameById } from './data/schoolContext';
 import {
   ADMIN_IMPORT_SCHEMAS,
   AdminBulkEntityType,
@@ -77,6 +57,14 @@ import { NavAppearanceModal } from './components/Modals/NavAppearanceModal';
 import { NotificationCenter } from './components/Common/NotificationCenter';
 import { CameraQRScannerModal } from './components/Common/CameraQRScannerModal';
 import { SessionWarningModal } from './components/Modals/SessionWarningModal';
+import {
+  AuthenticatedErpUser,
+  createAuthenticatedUserAccount,
+  loadPersistedErpState,
+  logoutSession,
+  saveErpCollection,
+  updateAuthenticatedUserAccount,
+} from './services/erpBackendService';
 
 function formatNowTimestamp(): string {
   return new Date().toLocaleString('en-IN', {
@@ -88,15 +76,22 @@ function formatNowTimestamp(): string {
   });
 }
 
+function persistCollectionAsync<T>(collection: string, items: T[]): void {
+  void saveErpCollection(collection, items).catch(() => undefined);
+}
+
 function ErpWorkspace() {
   const {
     schools,
     selectedSchoolId,
     selectedCampusId,
     applyTenantScopeLock,
+    hydrateHierarchy,
+    setLiveMetricsInput,
   } = useSchoolContext();
 
-  const [isLoggedIn, setIsLoggedIn] = useState(true);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [currentUser, setCurrentUser] = useState<AuthenticatedErpUser | null>(null);
   const [logoutReason, setLogoutReason] = useState<string | undefined>(undefined);
   const [currentUserRole, setCurrentUserRole] = useState<ErpRole>(
     'Super Administrator'
@@ -119,49 +114,115 @@ function ErpWorkspace() {
 
   const layout = useErpLayout();
 
+  // Multi-School Isolated Application State (Loaded Strictly from Backend Persistence)
+  const [students, setStudents] = useState<Student[]>([]);
+  const [staffList, setStaffList] = useState<Staff[]>([]);
+  const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>([]);
+  const [crmLeads, setCrmLeads] = useState<CRMLead[]>([]);
+  const [birthdays, setBirthdays] = useState<BirthdayItem[]>([]);
+  const [circulars, setCirculars] = useState<Circular[]>([]);
+  const [busRoutes, setBusRoutes] = useState<BusRoute[]>([]);
+  const [exams, setExams] = useState<ExamRecord[]>([]);
+  const [feeReceipts, setFeeReceipts] = useState<FeeReceipt[]>([]);
+  const [tcRecords, setTcRecords] = useState<TransferCertificate[]>([]);
+  const [libraryBooks, setLibraryBooks] = useState<LibraryBook[]>([]);
+  const [assets, setAssets] = useState<SchoolAsset[]>([]);
+  const [newsItems, setNewsItems] = useState<NewsItem[]>([]);
+  const [users, setUsers] = useState<SystemUser[]>([]);
+  const [classesList, setClassesList] = useState<SchoolClass[]>([]);
+  const [subjectsList, setSubjectsList] = useState<SchoolSubject[]>([]);
+  const [timetablesList, setTimetablesList] = useState<TimetableEntry[]>([]);
+  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
+  const [loginHistory, setLoginHistory] = useState<LoginHistoryEntry[]>([]);
+
+  const clearWorkspaceState = useCallback(() => {
+    setStudents([]);
+    setStaffList([]);
+    setLeaveRequests([]);
+    setCrmLeads([]);
+    setBirthdays([]);
+    setCirculars([]);
+    setBusRoutes([]);
+    setExams([]);
+    setFeeReceipts([]);
+    setTcRecords([]);
+    setLibraryBooks([]);
+    setAssets([]);
+    setNewsItems([]);
+    setUsers([]);
+    setClassesList([]);
+    setSubjectsList([]);
+    setTimetablesList([]);
+    setAuditLogs([]);
+    setLoginHistory([]);
+    hydrateHierarchy({
+      organizations: [],
+      schools: [],
+      academicYears: [],
+    });
+  }, [hydrateHierarchy]);
+
+  const hydrateFromBackend = useCallback(async () => {
+    try {
+      const state = await loadPersistedErpState();
+      hydrateHierarchy({
+        organizations: state.organizations || [],
+        schools: state.schools || [],
+        academicYears: state.academicYears || [],
+      });
+      setStudents(state.students || []);
+      setStaffList(state.staff || []);
+      setLeaveRequests(state.leaveRequests || []);
+      setCrmLeads(state.crmLeads || []);
+      setBirthdays(state.birthdays || []);
+      setCirculars(state.circulars || []);
+      setBusRoutes(state.busRoutes || []);
+      setExams(state.exams || []);
+      setFeeReceipts(state.feeReceipts || []);
+      setTcRecords(state.tcRecords || []);
+      setLibraryBooks(state.libraryBooks || []);
+      setAssets(state.assets || []);
+      setNewsItems(state.newsItems || []);
+      setUsers(state.users || []);
+      setClassesList(state.classes || []);
+      setSubjectsList(state.subjects || []);
+      setTimetablesList(state.timetables || []);
+      setAuditLogs(state.auditLogs || []);
+      setLoginHistory(state.loginHistory || []);
+    } catch {
+      // If session token expired or backend unavailable, keep empty clean state
+    }
+  }, [hydrateHierarchy]);
+
   const handleSessionExpire = useCallback(() => {
+    void logoutSession().catch(() => undefined);
+    clearWorkspaceState();
+    setCurrentUser(null);
     setIsLoggedIn(false);
-    setLogoutReason('Preview session timed out due to 15 minutes of inactivity.');
-  }, []);
+    setLogoutReason('Session timed out due to 15 minutes of inactivity.');
+  }, [clearWorkspaceState]);
 
   const session = useSessionPreviewTimer(isLoggedIn, handleSessionExpire);
 
-  // Multi-School Isolated Application State (Sample Preview Data)
-  const [students, setStudents] = useState<Student[]>(MULTI_SCHOOL_STUDENTS);
-  const [staffList, setStaffList] = useState<Staff[]>(MULTI_SCHOOL_STAFF);
-  const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>(
-    MULTI_SCHOOL_LEAVES
-  );
-  const [crmLeads, setCrmLeads] = useState<CRMLead[]>(MULTI_SCHOOL_LEADS);
-  const [birthdays, setBirthdays] = useState<BirthdayItem[]>(
-    MULTI_SCHOOL_BIRTHDAYS
-  );
-  const [circulars, setCirculars] = useState<Circular[]>(MULTI_SCHOOL_CIRCULARS);
-  const [feeReceipts, setFeeReceipts] = useState<FeeReceipt[]>(
-    MULTI_SCHOOL_FEE_RECEIPTS
-  );
-  const [tcRecords, setTcRecords] = useState<TransferCertificate[]>(
-    MULTI_SCHOOL_TC_RECORDS
-  );
-  const [libraryBooks, setLibraryBooks] = useState<LibraryBook[]>(
-    MULTI_SCHOOL_LIBRARY_BOOKS
-  );
-  const [assets, setAssets] = useState<SchoolAsset[]>(MULTI_SCHOOL_ASSETS);
-  const [newsItems, setNewsItems] = useState<NewsItem[]>(MULTI_SCHOOL_NEWS);
-  const [users, setUsers] = useState<SystemUser[]>(MULTI_SCHOOL_USERS);
-  const [classesList, setClassesList] = useState<SchoolClass[]>(
-    MULTI_SCHOOL_CLASSES
-  );
-  const [subjectsList, setSubjectsList] = useState<SchoolSubject[]>(
-    MULTI_SCHOOL_SUBJECTS
-  );
-  const [timetablesList, setTimetablesList] = useState<TimetableEntry[]>(
-    MULTI_SCHOOL_TIMETABLES
-  );
-  const [auditLogs, setAuditLogs] = useState<AuditLog[]>(MULTI_SCHOOL_AUDIT_LOGS);
-  const [loginHistory, setLoginHistory] = useState<LoginHistoryEntry[]>(
-    INITIAL_LOGIN_HISTORY
-  );
+  // Sync live persisted operational records into SchoolContext for KPI calculation
+  useEffect(() => {
+    setLiveMetricsInput({
+      students,
+      staff: staffList,
+      feeReceipts,
+      leaveRequests,
+      usersCount: users.length,
+      pendingAdmissionsCount: crmLeads.filter((l) => l.status !== 'Converted').length,
+    });
+  }, [
+    students,
+    staffList,
+    feeReceipts,
+    leaveRequests,
+    users.length,
+    crmLeads,
+    setLiveMetricsInput,
+  ]);
 
   // Modal & Utility UI States
   const [selectedStudentForModal, setSelectedStudentForModal] =
@@ -175,15 +236,12 @@ function ErpWorkspace() {
   const [searchQuery, setSearchQuery] = useState('');
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // Resolve default tenant tags when adding new records
+  // Resolve default tenant tags when adding new records (strictly from real schools)
   const defaultNewSchoolId =
-    selectedSchoolId === 'all'
-      ? schools[0]?.id || 'sch-leaders-cbse'
-      : selectedSchoolId;
+    selectedSchoolId === 'all' ? schools[0]?.id || '' : selectedSchoolId;
   const defaultNewCampusId =
     selectedCampusId === 'all'
-      ? schools.find((s) => s.id === defaultNewSchoolId)?.campuses[0]?.id ||
-        'cmp-chennai-hq'
+      ? schools.find((s) => s.id === defaultNewSchoolId)?.campuses[0]?.id || ''
       : selectedCampusId;
 
   // Apply strict school-level & campus-level data isolation
@@ -212,12 +270,12 @@ function ErpWorkspace() {
     [circulars, selectedSchoolId, selectedCampusId]
   );
   const scopedBusRoutes = useMemo(
-    () => filterByTenant(MULTI_SCHOOL_BUS_ROUTES, selectedSchoolId, selectedCampusId),
-    [selectedSchoolId, selectedCampusId]
+    () => filterByTenant(busRoutes, selectedSchoolId, selectedCampusId),
+    [busRoutes, selectedSchoolId, selectedCampusId]
   );
   const scopedExams = useMemo(
-    () => filterByTenant(MULTI_SCHOOL_EXAMS, selectedSchoolId, selectedCampusId),
-    [selectedSchoolId, selectedCampusId]
+    () => filterByTenant(exams, selectedSchoolId, selectedCampusId),
+    [exams, selectedSchoolId, selectedCampusId]
   );
   const scopedFeeReceipts = useMemo(
     () => filterByTenant(feeReceipts, selectedSchoolId, selectedCampusId),
@@ -264,92 +322,74 @@ function ErpWorkspace() {
     [loginHistory, selectedSchoolId, selectedCampusId]
   );
 
-  const applyRoleContext = useCallback(
-    (role: ErpRole, usernameOverride?: string, isInitialLogin = false) => {
+  const currentRoleDef = getRoleDefinition(currentUserRole);
+  const activeActorId = currentUser?.username || currentRoleDef.shortCode;
+  const activeActorName = currentUser?.fullName || currentRoleDef.role;
+
+  const appendAuditLog = useCallback(
+    (entry: Omit<AuditLog, 'id' | 'timestamp'>) => {
+      setAuditLogs((prev) => {
+        const next: AuditLog[] = [
+          {
+            ...entry,
+            id: `audit-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+            schoolId: entry.schoolId || selectedSchoolId,
+            campusId: entry.campusId || selectedCampusId,
+            timestamp: formatNowTimestamp(),
+          },
+          ...prev,
+        ];
+        persistCollectionAsync('auditLogs', next);
+        return next;
+      });
+    },
+    [selectedSchoolId, selectedCampusId]
+  );
+
+  const handleLogout = async () => {
+    await logoutSession().catch(() => undefined);
+    clearWorkspaceState();
+    setCurrentUser(null);
+    setIsLoggedIn(false);
+    setLogoutReason('You have securely signed out of TLGS-ERP.');
+    session.resetSession();
+  };
+
+  const handleLoginSuccess = async (user: AuthenticatedErpUser) => {
+    setCurrentUser(user);
+    setCurrentUserRole(user.role);
+    setIsLoggedIn(true);
+    setLogoutReason(undefined);
+    session.resetSession();
+
+    const def = getRoleDefinition(user.role);
+    if (def.scope === 'Platform' || def.scope === 'Organization') {
+      applyTenantScopeLock(null, null);
+    } else if (def.scope === 'School') {
+      applyTenantScopeLock(user.schoolId || null, null);
+    } else {
+      applyTenantScopeLock(user.schoolId || null, user.campusId || null);
+    }
+
+    setCurrentSection(def.defaultSection);
+    setActiveSubItem(def.defaultSubItem);
+
+    await hydrateFromBackend();
+  };
+
+  const handleSwitchPreviewRole = useCallback(
+    (role: ErpRole) => {
+      // Strictly restricted to Central Super Administrator inspecting role layouts
+      if (currentUser?.role !== 'Super Administrator') return;
       const def = getRoleDefinition(role);
       setCurrentUserRole(role);
-
-      // Enforce school/campus tenant lock based on RBAC scope
-      if (def.scope === 'Platform' || def.scope === 'Organization') {
-        applyTenantScopeLock(null, null);
-      } else if (def.scope === 'School') {
-        applyTenantScopeLock(def.sampleAccount.schoolId, null);
-      } else {
-        applyTenantScopeLock(
-          def.sampleAccount.schoolId,
-          def.sampleAccount.campusId
-        );
-      }
-
-      const timestamp = formatNowTimestamp();
-      const targetSchoolId = def.sampleAccount.schoolId;
-      const targetCampusId = def.sampleAccount.campusId;
-
-      setLoginHistory((prev) => [
-        {
-          id: `lh-${Date.now()}`,
-          userId: def.shortCode,
-          username: usernameOverride || def.sampleAccount.username,
-          fullName: def.sampleAccount.fullName,
-          role,
-          schoolId: targetSchoolId,
-          schoolName: getSchoolNameById(targetSchoolId, schools),
-          campusId: targetCampusId,
-          campusName: getCampusNameById(targetSchoolId, targetCampusId, schools),
-          timestamp,
-          ipAddress: '103.21.144.19',
-          device: 'Enterprise Web Preview · Browser',
-          status: 'Success',
-        },
-        ...prev,
-      ]);
-
-      setAuditLogs((prev) => [
-        {
-          id: `audit-${Date.now()}`,
-          schoolId: targetSchoolId,
-          campusId: targetCampusId,
-          userID: def.shortCode,
-          userName: def.sampleAccount.fullName,
-          role,
-          timestamp,
-          actionType: isInitialLogin ? 'LOGIN' : 'ROLE_PERMISSION',
-          referenceID: role,
-          remarks: isInitialLogin
-            ? `Signed in as ${role} (${def.scope} Scope)`
-            : `Switched active RBAC preview role to ${role} (${def.scope} Scope)`,
-        },
-        ...prev,
-      ]);
-
-      // Redirect to role's default module if current module is inaccessible
-      if (
-        isInitialLogin ||
-        !canAccessModule(role, currentSection, permissionMatrix)
-      ) {
+      if (!canAccessModule(role, currentSection, permissionMatrix)) {
         setCurrentSection(def.defaultSection);
         setActiveSubItem(def.defaultSubItem);
       }
     },
-    [applyTenantScopeLock, currentSection, permissionMatrix, schools]
+    [currentUser?.role, currentSection, permissionMatrix]
   );
-
-  const handleLogout = () => {
-    setIsLoggedIn(false);
-    setLogoutReason('Signed out of UI preview workspace.');
-    session.resetSession();
-  };
-
-  const handleLoginSuccess = (username: string, role: ErpRole) => {
-    setIsLoggedIn(true);
-    setLogoutReason(undefined);
-    session.resetSession();
-    applyRoleContext(role, username, true);
-  };
-
-  const handleSwitchPreviewRole = (role: ErpRole) => {
-    applyRoleContext(role, undefined, false);
-  };
 
   const handleNavigate = (section: NavSection, subItem?: string) => {
     setCurrentSection(section);
@@ -357,9 +397,10 @@ function ErpWorkspace() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handleRefresh = () => {
+  const handleRefresh = async () => {
     setIsRefreshing(true);
-    setTimeout(() => setIsRefreshing(false), 600);
+    await hydrateFromBackend();
+    setTimeout(() => setIsRefreshing(false), 300);
   };
 
   const handleOpenQRScanner = (
@@ -369,328 +410,512 @@ function ErpWorkspace() {
     setIsCameraScannerOpen(true);
   };
 
-  const currentRoleDef = getRoleDefinition(currentUserRole);
-
   const handlers = {
     onSendBirthdayWish: (id: string) => {
-      setBirthdays((prev) =>
-        prev.map((b) => (b.id === id ? { ...b, wished: true } : b))
-      );
+      setBirthdays((prev) => {
+        const next = prev.map((b) => (b.id === id ? { ...b, wished: true } : b));
+        persistCollectionAsync('birthdays', next);
+        return next;
+      });
     },
     onAddLead: (lead: Omit<CRMLead, 'id'>) => {
-      setCrmLeads((prev) => [
-        {
-          ...lead,
-          id: `crm-${Date.now()}`,
-          schoolId: lead.schoolId || defaultNewSchoolId,
-          campusId: lead.campusId || defaultNewCampusId,
-        },
-        ...prev,
-      ]);
+      setCrmLeads((prev) => {
+        const next = [
+          {
+            ...lead,
+            id: `crm-${Date.now()}`,
+            schoolId: lead.schoolId || defaultNewSchoolId,
+            campusId: lead.campusId || defaultNewCampusId,
+          },
+          ...prev,
+        ];
+        persistCollectionAsync('crmLeads', next);
+        return next;
+      });
     },
     onAddStudent: (stdData: Omit<Student, 'id'>) => {
-      setStudents((prev) => [
-        {
-          ...stdData,
-          id: `std-${Date.now()}`,
-          schoolId: stdData.schoolId || defaultNewSchoolId,
-          campusId: stdData.campusId || defaultNewCampusId,
-        },
-        ...prev,
-      ]);
+      setStudents((prev) => {
+        const next = [
+          {
+            ...stdData,
+            id: `std-${Date.now()}`,
+            schoolId: stdData.schoolId || defaultNewSchoolId,
+            campusId: stdData.campusId || defaultNewCampusId,
+          },
+          ...prev,
+        ];
+        persistCollectionAsync('students', next);
+        return next;
+      });
     },
     onApproveLeave: (id: string, remarks?: string) => {
-      setLeaveRequests((prev) =>
-        prev.map((r) =>
+      setLeaveRequests((prev) => {
+        const next = prev.map((r) =>
           r.id === id
-            ? { ...r, status: 'Approved', remarks: remarks || 'Approved' }
+            ? { ...r, status: 'Approved' as const, remarks: remarks || 'Approved' }
             : r
-        )
-      );
+        );
+        persistCollectionAsync('leaveRequests', next);
+        return next;
+      });
     },
     onRejectLeave: (id: string, remarks?: string) => {
-      setLeaveRequests((prev) =>
-        prev.map((r) =>
+      setLeaveRequests((prev) => {
+        const next = prev.map((r) =>
           r.id === id
-            ? { ...r, status: 'Rejected', remarks: remarks || 'Declined' }
+            ? { ...r, status: 'Rejected' as const, remarks: remarks || 'Declined' }
             : r
-        )
-      );
+        );
+        persistCollectionAsync('leaveRequests', next);
+        return next;
+      });
     },
     onApplyLeave: (
       leaveData: Omit<LeaveRequest, 'id' | 'status' | 'appliedDate'>
     ) => {
-      setLeaveRequests((prev) => [
-        {
-          ...leaveData,
-          id: `lev-${Date.now()}`,
-          schoolId: leaveData.schoolId || defaultNewSchoolId,
-          campusId: leaveData.campusId || defaultNewCampusId,
-          status: 'Pending',
-          appliedDate: '2026-10-23',
-        },
-        ...prev,
-      ]);
+      const todayIso = new Date().toISOString().slice(0, 10);
+      setLeaveRequests((prev) => {
+        const next = [
+          {
+            ...leaveData,
+            id: `lev-${Date.now()}`,
+            schoolId: leaveData.schoolId || defaultNewSchoolId,
+            campusId: leaveData.campusId || defaultNewCampusId,
+            status: 'Pending' as const,
+            appliedDate: todayIso,
+          },
+          ...prev,
+        ];
+        persistCollectionAsync('leaveRequests', next);
+        return next;
+      });
     },
     onAddStaff: (newStaffData: Omit<Staff, 'id'>) => {
-      setStaffList((prev) => [
-        {
-          ...newStaffData,
-          id: `stf-${Date.now()}`,
-          schoolId: newStaffData.schoolId || defaultNewSchoolId,
-          campusId: newStaffData.campusId || defaultNewCampusId,
-        },
-        ...prev,
-      ]);
+      setStaffList((prev) => {
+        const next = [
+          {
+            ...newStaffData,
+            id: `stf-${Date.now()}`,
+            schoolId: newStaffData.schoolId || defaultNewSchoolId,
+            campusId: newStaffData.campusId || defaultNewCampusId,
+          },
+          ...prev,
+        ];
+        persistCollectionAsync('staff', next);
+        return next;
+      });
     },
     onUpdateStaff: (updatedStaff: Staff) => {
-      setStaffList((prev) =>
-        prev.map((s) => (s.id === updatedStaff.id ? updatedStaff : s))
-      );
+      setStaffList((prev) => {
+        const next = prev.map((s) => (s.id === updatedStaff.id ? updatedStaff : s));
+        persistCollectionAsync('staff', next);
+        return next;
+      });
     },
     onArchiveStaff: (staffId: string, details: any) => {
-      setStaffList((prev) =>
-        prev.map((s) =>
+      setStaffList((prev) => {
+        const next = prev.map((s) =>
           s.id === staffId
             ? {
                 ...s,
-                status: 'Archived',
+                status: 'Archived' as const,
                 leaveBalance: 0,
                 archivedDetails: details,
               }
             : s
-        )
-      );
+        );
+        persistCollectionAsync('staff', next);
+        return next;
+      });
     },
     onRestoreStaff: (staffId: string) => {
-      setStaffList((prev) =>
-        prev.map((s) =>
-          s.id === staffId ? { ...s, status: 'Active', leaveBalance: 15 } : s
-        )
-      );
+      setStaffList((prev) => {
+        const next = prev.map((s) =>
+          s.id === staffId ? { ...s, status: 'Active' as const, leaveBalance: 15 } : s
+        );
+        persistCollectionAsync('staff', next);
+        return next;
+      });
     },
     onRecordPayment: (receipt: FeeReceipt) => {
-      setFeeReceipts((prev) => [
-        {
-          ...receipt,
-          schoolId: receipt.schoolId || defaultNewSchoolId,
-          campusId: receipt.campusId || defaultNewCampusId,
-        },
-        ...prev,
-      ]);
-      setStudents((prev) =>
-        prev.map((s) =>
+      setFeeReceipts((prev) => {
+        const next = [
+          {
+            ...receipt,
+            schoolId: receipt.schoolId || defaultNewSchoolId,
+            campusId: receipt.campusId || defaultNewCampusId,
+          },
+          ...prev,
+        ];
+        persistCollectionAsync('feeReceipts', next);
+        return next;
+      });
+      setStudents((prev) => {
+        const next = prev.map((s) =>
           s.id === receipt.studentId
-            ? { ...s, feeStatus: 'Paid', dueAmount: 0 }
+            ? { ...s, feeStatus: 'Paid' as const, dueAmount: 0 }
             : s
-        )
-      );
+        );
+        persistCollectionAsync('students', next);
+        return next;
+      });
     },
     onCreateTC: (tc: TransferCertificate) => {
-      setTcRecords((prev) => [
-        {
-          ...tc,
-          schoolId: tc.schoolId || defaultNewSchoolId,
-          campusId: tc.campusId || defaultNewCampusId,
-        },
-        ...prev,
-      ]);
+      setTcRecords((prev) => {
+        const next = [
+          {
+            ...tc,
+            schoolId: tc.schoolId || defaultNewSchoolId,
+            campusId: tc.campusId || defaultNewCampusId,
+          },
+          ...prev,
+        ];
+        persistCollectionAsync('tcRecords', next);
+        return next;
+      });
     },
     onAddCircular: (circ: Omit<Circular, 'id'>) => {
-      setCirculars((prev) => [
-        {
-          ...circ,
-          id: `cir-${Date.now()}`,
-          schoolId: circ.schoolId || defaultNewSchoolId,
-          campusId: circ.campusId || defaultNewCampusId,
-        },
-        ...prev,
-      ]);
+      setCirculars((prev) => {
+        const next = [
+          {
+            ...circ,
+            id: `cir-${Date.now()}`,
+            schoolId: circ.schoolId || defaultNewSchoolId,
+            campusId: circ.campusId || defaultNewCampusId,
+          },
+          ...prev,
+        ];
+        persistCollectionAsync('circulars', next);
+        return next;
+      });
     },
     onIssueBook: (bookId: string) => {
-      setLibraryBooks((prev) =>
-        prev.map((b) =>
+      setLibraryBooks((prev) => {
+        const next = prev.map((b) =>
           b.id === bookId
             ? { ...b, availableCopies: Math.max(0, b.availableCopies - 1) }
             : b
-        )
-      );
+        );
+        persistCollectionAsync('libraryBooks', next);
+        return next;
+      });
     },
     onAddLibraryBook: (book: Omit<LibraryBook, 'id'>) => {
-      setLibraryBooks((prev) => [
-        {
-          ...book,
-          id: `lib-${Date.now()}`,
-          schoolId: book.schoolId || defaultNewSchoolId,
-          campusId: book.campusId || defaultNewCampusId,
-        },
-        ...prev,
-      ]);
+      setLibraryBooks((prev) => {
+        const next = [
+          {
+            ...book,
+            id: `lib-${Date.now()}`,
+            schoolId: book.schoolId || defaultNewSchoolId,
+            campusId: book.campusId || defaultNewCampusId,
+          },
+          ...prev,
+        ];
+        persistCollectionAsync('libraryBooks', next);
+        return next;
+      });
     },
     onAddAsset: (asset: Omit<SchoolAsset, 'id'>) => {
-      setAssets((prev) => [
-        {
-          ...asset,
-          id: `ast-${Date.now()}`,
-          schoolId: asset.schoolId || defaultNewSchoolId,
-          campusId: asset.campusId || defaultNewCampusId,
-        },
-        ...prev,
-      ]);
+      setAssets((prev) => {
+        const next = [
+          {
+            ...asset,
+            id: `ast-${Date.now()}`,
+            schoolId: asset.schoolId || defaultNewSchoolId,
+            campusId: asset.campusId || defaultNewCampusId,
+          },
+          ...prev,
+        ];
+        persistCollectionAsync('assets', next);
+        return next;
+      });
     },
     onAddNews: (item: Omit<NewsItem, 'id'>) => {
-      setNewsItems((prev) => [
-        {
-          ...item,
-          id: `news-${Date.now()}`,
-          schoolId: item.schoolId || defaultNewSchoolId,
-        },
-        ...prev,
-      ]);
+      setNewsItems((prev) => {
+        const next = [
+          {
+            ...item,
+            id: `news-${Date.now()}`,
+            schoolId: item.schoolId || defaultNewSchoolId,
+          },
+          ...prev,
+        ];
+        persistCollectionAsync('newsItems', next);
+        return next;
+      });
     },
     onUpdateNews: (updated: NewsItem) => {
-      setNewsItems((prev) =>
-        prev.map((item) => (item.id === updated.id ? updated : item))
-      );
+      setNewsItems((prev) => {
+        const next = prev.map((item) => (item.id === updated.id ? updated : item));
+        persistCollectionAsync('newsItems', next);
+        return next;
+      });
     },
     onDeleteNews: (id: string) => {
-      setNewsItems((prev) => prev.filter((item) => item.id !== id));
+      setNewsItems((prev) => {
+        const next = prev.filter((item) => item.id !== id);
+        persistCollectionAsync('newsItems', next);
+        return next;
+      });
     },
-    onAddUser: (user: Omit<SystemUser, 'id'>) => {
-      const newId = `usr-${Date.now()}`;
-      setUsers((prev) => [
-        {
-          ...user,
-          id: newId,
-          schoolId: user.schoolId || defaultNewSchoolId,
-          campusId: user.campusId || defaultNewCampusId,
-        },
-        ...prev,
-      ]);
-      setAuditLogs((prev) => [
-        {
-          id: `audit-${Date.now()}`,
-          schoolId: user.schoolId || defaultNewSchoolId,
-          campusId: user.campusId || defaultNewCampusId,
-          userID: currentRoleDef.shortCode,
-          userName: currentRoleDef.sampleAccount.fullName,
-          role: currentUserRole,
-          timestamp: formatNowTimestamp(),
-          actionType: 'USER_STATUS',
-          referenceID: user.username,
-          remarks: `Created user account ${user.fullName} with role ${user.role}`,
-        },
-        ...prev,
-      ]);
+    onAddUser: async (user: Omit<SystemUser, 'id'> & { password?: string }) => {
+      const { password, ...userProfile } = user;
+      const accessScope =
+        userProfile.accessScope ||
+        (userProfile.schoolId === 'all' || !userProfile.schoolId
+          ? 'all_schools'
+          : 'single_school');
+      const targetSchoolId =
+        accessScope === 'all_schools'
+          ? 'all'
+          : userProfile.schoolId || userProfile.schoolIds?.[0] || defaultNewSchoolId || 'all';
+      const targetCampusId =
+        accessScope === 'all_schools'
+          ? 'all'
+          : userProfile.campusId || userProfile.campusIds?.[0] || defaultNewCampusId || 'all';
+
+      if (password && password.length >= 8) {
+        const { user: createdUser } = await createAuthenticatedUserAccount({
+          username: userProfile.username,
+          fullName: userProfile.fullName,
+          email: userProfile.email,
+          phone: userProfile.phone,
+          roleId: userProfile.roleId,
+          role: userProfile.role,
+          password,
+          organizationId: userProfile.organizationId || null,
+          accessScope,
+          schoolId: targetSchoolId === 'all' ? null : targetSchoolId,
+          campusId: targetCampusId === 'all' ? null : targetCampusId,
+          schoolIds:
+            userProfile.schoolIds ||
+            (targetSchoolId !== 'all' ? [targetSchoolId] : []),
+          campusIds:
+            userProfile.campusIds ||
+            (targetCampusId !== 'all' ? [targetCampusId] : []),
+          academicYearId: userProfile.academicYearId || null,
+          classId: userProfile.classId || null,
+          section: userProfile.section || null,
+          linkedStudentIds: userProfile.linkedStudentIds || [],
+          department: userProfile.department,
+          dob: userProfile.dob,
+          gender: userProfile.gender,
+          address: userProfile.address,
+          status: userProfile.status,
+        });
+        setUsers((prev) => [
+          createdUser,
+          ...prev.filter((u) => u.id !== createdUser.id),
+        ]);
+      } else {
+        setUsers((prev) => {
+          const next: SystemUser[] = [
+            {
+              ...userProfile,
+              id: `usr-${Date.now()}`,
+              accessScope,
+              schoolId: targetSchoolId,
+              campusId: targetCampusId,
+              createdBy: activeActorId,
+              roleAssignedBy: activeActorId,
+              createdDate: new Date().toISOString(),
+            },
+            ...prev,
+          ];
+          persistCollectionAsync('users', next);
+          return next;
+        });
+      }
+
+      appendAuditLog({
+        schoolId: targetSchoolId,
+        campusId: targetCampusId,
+        userID: activeActorId,
+        userName: activeActorName,
+        role: currentUserRole,
+        actionType: 'USER_STATUS',
+        referenceID: userProfile.username,
+        remarks: `Created user account ${userProfile.fullName} with role ${userProfile.role} (${accessScope})`,
+      });
     },
-    onUpdateUser: (updated: SystemUser) => {
-      setUsers((prev) => prev.map((u) => (u.id === updated.id ? updated : u)));
+    onUpdateUser: async (updated: SystemUser) => {
+      const { user: savedUser } = await updateAuthenticatedUserAccount(
+        updated.id,
+        {
+          fullName: updated.fullName,
+          email: updated.email,
+          phone: updated.phone,
+          roleId: updated.roleId,
+          role: updated.role,
+          password: updated.password,
+          organizationId: updated.organizationId || null,
+          accessScope: updated.accessScope,
+          schoolId: updated.schoolId === 'all' ? null : updated.schoolId,
+          campusId: updated.campusId === 'all' ? null : updated.campusId,
+          schoolIds: updated.schoolIds,
+          campusIds: updated.campusIds,
+          academicYearId: updated.academicYearId || null,
+          classId: updated.classId || null,
+          section: updated.section || null,
+          linkedStudentIds: updated.linkedStudentIds,
+          department: updated.department,
+          dob: updated.dob,
+          gender: updated.gender,
+          address: updated.address,
+          status: updated.status,
+        }
+      );
+      setUsers((prev) =>
+        prev.map((u) => (u.id === savedUser.id ? savedUser : u))
+      );
+
+      appendAuditLog({
+        schoolId: savedUser.schoolId,
+        campusId: savedUser.campusId,
+        userID: activeActorId,
+        userName: activeActorName,
+        role: currentUserRole,
+        actionType: 'USER_STATUS',
+        referenceID: savedUser.username,
+        remarks: `Updated user ${savedUser.fullName} (${savedUser.role} · ${savedUser.accessScope || 'single_school'})`,
+      });
     },
     onDeleteUser: (id: string) => {
-      setUsers((prev) => prev.filter((u) => u.id !== id));
+      setUsers((prev) => {
+        const next = prev.filter((u) => u.id !== id);
+        persistCollectionAsync('users', next);
+        return next;
+      });
     },
     onToggleUserStatus: (id: string) => {
       const target = users.find((u) => u.id === id);
-      const nextStatus = target?.status === 'Active' ? 'Inactive' : 'Active';
-      setUsers((prev) =>
-        prev.map((u) => (u.id === id ? { ...u, status: nextStatus } : u))
-      );
+      const nextStatus: 'Active' | 'Inactive' =
+        target?.status === 'Active' ? 'Inactive' : 'Active';
+      setUsers((prev) => {
+        const next = prev.map((u) =>
+          u.id === id ? { ...u, status: nextStatus } : u
+        );
+        persistCollectionAsync('users', next);
+        return next;
+      });
       if (target) {
-        setAuditLogs((prev) => [
-          {
-            id: `audit-${Date.now()}`,
-            schoolId: target.schoolId,
-            campusId: target.campusId,
-            userID: currentRoleDef.shortCode,
-            userName: currentRoleDef.sampleAccount.fullName,
-            role: currentUserRole,
-            timestamp: formatNowTimestamp(),
-            actionType: 'USER_STATUS',
-            referenceID: target.username,
-            remarks: `Changed account status for ${target.fullName} (${target.role}) to ${nextStatus}`,
-          },
-          ...prev,
-        ]);
+        appendAuditLog({
+          schoolId: target.schoolId,
+          campusId: target.campusId,
+          userID: activeActorId,
+          userName: activeActorName,
+          role: currentUserRole,
+          actionType: 'USER_STATUS',
+          referenceID: target.username,
+          remarks: `Changed account status for ${target.fullName} (${target.role}) to ${nextStatus}`,
+        });
       }
     },
     onResetPassword: (id: string) => {
       const target = users.find((u) => u.id === id);
-      setUsers((prev) =>
-        prev.map((u) =>
+      setUsers((prev) => {
+        const next = prev.map((u) =>
           u.id === id ? { ...u, passwordResetRequired: true } : u
-        )
-      );
-      setAuditLogs((prev) => [
-        {
-          id: `audit-${Date.now()}`,
-          schoolId: target?.schoolId || defaultNewSchoolId,
-          campusId: target?.campusId || defaultNewCampusId,
-          userID: currentRoleDef.shortCode,
-          userName: currentRoleDef.sampleAccount.fullName,
-          role: currentUserRole,
-          timestamp: formatNowTimestamp(),
-          actionType: 'PASSWORD_RESET',
-          referenceID: target?.username || id,
-          remarks: `Forced password reset queued for ${target?.fullName || id} (Django Auth integration ready)`,
-        },
-        ...prev,
-      ]);
+        );
+        persistCollectionAsync('users', next);
+        return next;
+      });
+      appendAuditLog({
+        schoolId: target?.schoolId || defaultNewSchoolId,
+        campusId: target?.campusId || defaultNewCampusId,
+        userID: activeActorId,
+        userName: activeActorName,
+        role: currentUserRole,
+        actionType: 'PASSWORD_RESET',
+        referenceID: target?.username || id,
+        remarks: `Password reset flagged for ${target?.fullName || id}`,
+      });
     },
     onAddClass: (cls: Omit<SchoolClass, 'id'>) => {
-      setClassesList((prev) => [
-        {
-          ...cls,
-          id: `cls-${Date.now()}`,
-          schoolId: cls.schoolId || defaultNewSchoolId,
-          campusId: cls.campusId || defaultNewCampusId,
-        },
-        ...prev,
-      ]);
+      setClassesList((prev) => {
+        const next = [
+          {
+            ...cls,
+            id: `cls-${Date.now()}`,
+            schoolId: cls.schoolId || defaultNewSchoolId,
+            campusId: cls.campusId || defaultNewCampusId,
+          },
+          ...prev,
+        ];
+        persistCollectionAsync('classes', next);
+        return next;
+      });
     },
     onUpdateClass: (updated: SchoolClass) => {
-      setClassesList((prev) =>
-        prev.map((c) => (c.id === updated.id ? updated : c))
-      );
+      setClassesList((prev) => {
+        const next = prev.map((c) => (c.id === updated.id ? updated : c));
+        persistCollectionAsync('classes', next);
+        return next;
+      });
     },
     onDeleteClass: (id: string) => {
-      setClassesList((prev) => prev.filter((c) => c.id !== id));
+      setClassesList((prev) => {
+        const next = prev.filter((c) => c.id !== id);
+        persistCollectionAsync('classes', next);
+        return next;
+      });
     },
     onAddSubject: (sub: Omit<SchoolSubject, 'id'>) => {
-      setSubjectsList((prev) => [
-        {
-          ...sub,
-          id: `sub-${Date.now()}`,
-          schoolId: sub.schoolId || defaultNewSchoolId,
-        },
-        ...prev,
-      ]);
+      setSubjectsList((prev) => {
+        const next = [
+          {
+            ...sub,
+            id: `sub-${Date.now()}`,
+            schoolId: sub.schoolId || defaultNewSchoolId,
+          },
+          ...prev,
+        ];
+        persistCollectionAsync('subjects', next);
+        return next;
+      });
     },
     onUpdateSubject: (updated: SchoolSubject) => {
-      setSubjectsList((prev) =>
-        prev.map((s) => (s.id === updated.id ? updated : s))
-      );
+      setSubjectsList((prev) => {
+        const next = prev.map((s) => (s.id === updated.id ? updated : s));
+        persistCollectionAsync('subjects', next);
+        return next;
+      });
     },
     onDeleteSubject: (id: string) => {
-      setSubjectsList((prev) => prev.filter((s) => s.id !== id));
+      setSubjectsList((prev) => {
+        const next = prev.filter((s) => s.id !== id);
+        persistCollectionAsync('subjects', next);
+        return next;
+      });
     },
     onAddTimetable: (tt: Omit<TimetableEntry, 'id'>) => {
-      setTimetablesList((prev) => [
-        {
-          ...tt,
-          id: `tt-${Date.now()}`,
-          schoolId: tt.schoolId || defaultNewSchoolId,
-          campusId: tt.campusId || defaultNewCampusId,
-        },
-        ...prev,
-      ]);
+      setTimetablesList((prev) => {
+        const next = [
+          {
+            ...tt,
+            id: `tt-${Date.now()}`,
+            schoolId: tt.schoolId || defaultNewSchoolId,
+            campusId: tt.campusId || defaultNewCampusId,
+          },
+          ...prev,
+        ];
+        persistCollectionAsync('timetables', next);
+        return next;
+      });
     },
     onUpdateTimetable: (updated: TimetableEntry) => {
-      setTimetablesList((prev) =>
-        prev.map((t) => (t.id === updated.id ? updated : t))
-      );
+      setTimetablesList((prev) => {
+        const next = prev.map((t) => (t.id === updated.id ? updated : t));
+        persistCollectionAsync('timetables', next);
+        return next;
+      });
     },
     onDeleteTimetable: (id: string) => {
-      setTimetablesList((prev) => prev.filter((t) => t.id !== id));
+      setTimetablesList((prev) => {
+        const next = prev.filter((t) => t.id !== id);
+        persistCollectionAsync('timetables', next);
+        return next;
+      });
     },
     onUpdatePermission: (
       role: ErpRole,
@@ -726,21 +951,14 @@ function ErpWorkspace() {
           },
         };
       });
-      setAuditLogs((prev) => [
-        {
-          id: `audit-${Date.now()}`,
-          schoolId: selectedSchoolId,
-          campusId: selectedCampusId,
-          userID: currentRoleDef.shortCode,
-          userName: currentRoleDef.sampleAccount.fullName,
-          role: currentUserRole,
-          timestamp: formatNowTimestamp(),
-          actionType: 'ROLE_PERMISSION',
-          referenceID: `${role}:${moduleId}`,
-          remarks: `Updated ${field.toUpperCase()} permission to ${value ? 'ALLOW' : 'DENY'} for ${role} on ${moduleId}`,
-        },
-        ...prev,
-      ]);
+      appendAuditLog({
+        userID: activeActorId,
+        userName: activeActorName,
+        role: currentUserRole,
+        actionType: 'ROLE_PERMISSION',
+        referenceID: `${role}:${moduleId}`,
+        remarks: `Updated ${field.toUpperCase()} permission to ${value ? 'ALLOW' : 'DENY'} for ${role} on ${moduleId}`,
+      });
     },
     onToggleMenuVisibility: (moduleId: NavSection) => {
       setMenuVisibility((prev) => ({
@@ -754,21 +972,14 @@ function ErpWorkspace() {
       referenceId?: string
     ) => {
       setManagedMenus((prev) => updater(prev));
-      setAuditLogs((prev) => [
-        {
-          id: `audit-${Date.now()}`,
-          schoolId: selectedSchoolId,
-          campusId: selectedCampusId,
-          userID: currentRoleDef.shortCode,
-          userName: currentRoleDef.sampleAccount.fullName,
-          role: currentUserRole,
-          timestamp: formatNowTimestamp(),
-          actionType: 'SETTINGS_CHANGE',
-          referenceID: referenceId || 'MENU_STRUCTURE',
-          remarks: auditRemark,
-        },
-        ...prev,
-      ]);
+      appendAuditLog({
+        userID: activeActorId,
+        userName: activeActorName,
+        role: currentUserRole,
+        actionType: 'SETTINGS_CHANGE',
+        referenceID: referenceId || 'MENU_STRUCTURE',
+        remarks: auditRemark,
+      });
     },
     onUpdateMenuOperationPermission: (
       role: ErpRole,
@@ -793,21 +1004,14 @@ function ErpWorkspace() {
         }
         return { ...prev, [role]: next };
       });
-      setAuditLogs((prev) => [
-        {
-          id: `audit-${Date.now()}`,
-          schoolId: selectedSchoolId,
-          campusId: selectedCampusId,
-          userID: currentRoleDef.shortCode,
-          userName: currentRoleDef.sampleAccount.fullName,
-          role: currentUserRole,
-          timestamp: formatNowTimestamp(),
-          actionType: 'ROLE_PERMISSION',
-          referenceID: `MENU:${role}:${operation}`,
-          remarks: `Set Menu Management "${operation.toUpperCase()}" permission to ${value ? 'ALLOW' : 'DENY'} for ${role}`,
-        },
-        ...prev,
-      ]);
+      appendAuditLog({
+        userID: activeActorId,
+        userName: activeActorName,
+        role: currentUserRole,
+        actionType: 'ROLE_PERMISSION',
+        referenceID: `MENU:${role}:${operation}`,
+        remarks: `Set Menu Management "${operation.toUpperCase()}" permission to ${value ? 'ALLOW' : 'DENY'} for ${role}`,
+      });
     },
     onSwitchPreviewRole: handleSwitchPreviewRole,
     onBulkImportAdmin: (
@@ -816,9 +1020,6 @@ function ErpWorkspace() {
       updateExisting: boolean
     ) => {
       const nowStamp = Date.now();
-      let created = 0;
-      let updated = 0;
-
       const creates = result.rows.filter(
         (r) => r.action === 'create' && Boolean(r.payload)
       );
@@ -828,8 +1029,8 @@ function ErpWorkspace() {
           )
         : [];
 
-      created = creates.length;
-      updated = updates.length;
+      const created = creates.length;
+      const updated = updates.length;
 
       if (entity === 'users') {
         setUsers((prev) => {
@@ -844,7 +1045,9 @@ function ErpWorkspace() {
             ...(c.payload as Omit<SystemUser, 'id'>),
             id: `usr-bulk-${nowStamp}-${idx}`,
           }));
-          return [...createdItems, ...merged];
+          const next = [...createdItems, ...merged];
+          persistCollectionAsync('users', next);
+          return next;
         });
       } else if (entity === 'classes') {
         setClassesList((prev) => {
@@ -859,7 +1062,9 @@ function ErpWorkspace() {
             ...(c.payload as Omit<SchoolClass, 'id'>),
             id: `cls-bulk-${nowStamp}-${idx}`,
           }));
-          return [...createdItems, ...merged];
+          const next = [...createdItems, ...merged];
+          persistCollectionAsync('classes', next);
+          return next;
         });
       } else if (entity === 'subjects') {
         setSubjectsList((prev) => {
@@ -874,7 +1079,9 @@ function ErpWorkspace() {
             ...(c.payload as Omit<SchoolSubject, 'id'>),
             id: `sub-bulk-${nowStamp}-${idx}`,
           }));
-          return [...createdItems, ...merged];
+          const next = [...createdItems, ...merged];
+          persistCollectionAsync('subjects', next);
+          return next;
         });
       } else if (entity === 'timetables') {
         setTimetablesList((prev) => {
@@ -889,74 +1096,76 @@ function ErpWorkspace() {
             ...(c.payload as Omit<TimetableEntry, 'id'>),
             id: `tt-bulk-${nowStamp}-${idx}`,
           }));
-          return [...createdItems, ...merged];
+          const next = [...createdItems, ...merged];
+          persistCollectionAsync('timetables', next);
+          return next;
         });
       }
 
-      setAuditLogs((prev) => [
-        {
-          id: `audit-${nowStamp}`,
-          schoolId: selectedSchoolId,
-          campusId: selectedCampusId,
-          userID: currentRoleDef.shortCode,
-          userName: currentRoleDef.sampleAccount.fullName,
-          role: currentUserRole,
-          timestamp: formatNowTimestamp(),
-          actionType: 'SETTINGS_CHANGE',
-          referenceID: result.fileName,
-          remarks: `Bulk imported ${ADMIN_IMPORT_SCHEMAS[entity].label} from "${result.fileName}" (${created} created, ${updated} updated, ${result.errorRows} skipped errors)`,
-        },
-        ...prev,
-      ]);
+      appendAuditLog({
+        userID: activeActorId,
+        userName: activeActorName,
+        role: currentUserRole,
+        actionType: 'SETTINGS_CHANGE',
+        referenceID: result.fileName,
+        remarks: `Bulk imported ${ADMIN_IMPORT_SCHEMAS[entity].label} from "${result.fileName}" (${created} created, ${updated} updated, ${result.errorRows} skipped errors)`,
+      });
 
       return { created, updated };
     },
     onAddAuditLog: (log: Omit<AuditLog, 'id' | 'timestamp'>) => {
-      setAuditLogs((prev) => [
-        {
-          ...log,
-          id: `audit-${Date.now()}`,
-          schoolId: log.schoolId || selectedSchoolId,
-          campusId: log.campusId || selectedCampusId,
-          timestamp: formatNowTimestamp(),
-        },
-        ...prev,
-      ]);
+      appendAuditLog(log);
     },
     onRestoreState: (importedData: any) => {
       try {
-        if (importedData.students) setStudents(importedData.students);
-        if (importedData.staffList) setStaffList(importedData.staffList);
-        if (importedData.leaveRequests)
+        if (importedData.students) {
+          setStudents(importedData.students);
+          persistCollectionAsync('students', importedData.students);
+        }
+        if (importedData.staffList) {
+          setStaffList(importedData.staffList);
+          persistCollectionAsync('staff', importedData.staffList);
+        }
+        if (importedData.leaveRequests) {
           setLeaveRequests(importedData.leaveRequests);
-        if (importedData.crmLeads) setCrmLeads(importedData.crmLeads);
-        if (importedData.birthdays) setBirthdays(importedData.birthdays);
-        if (importedData.circulars) setCirculars(importedData.circulars);
-        if (importedData.feeReceipts) setFeeReceipts(importedData.feeReceipts);
-        if (importedData.tcRecords) setTcRecords(importedData.tcRecords);
-        if (importedData.libraryBooks)
+          persistCollectionAsync('leaveRequests', importedData.leaveRequests);
+        }
+        if (importedData.crmLeads) {
+          setCrmLeads(importedData.crmLeads);
+          persistCollectionAsync('crmLeads', importedData.crmLeads);
+        }
+        if (importedData.birthdays) {
+          setBirthdays(importedData.birthdays);
+          persistCollectionAsync('birthdays', importedData.birthdays);
+        }
+        if (importedData.circulars) {
+          setCirculars(importedData.circulars);
+          persistCollectionAsync('circulars', importedData.circulars);
+        }
+        if (importedData.feeReceipts) {
+          setFeeReceipts(importedData.feeReceipts);
+          persistCollectionAsync('feeReceipts', importedData.feeReceipts);
+        }
+        if (importedData.tcRecords) {
+          setTcRecords(importedData.tcRecords);
+          persistCollectionAsync('tcRecords', importedData.tcRecords);
+        }
+        if (importedData.libraryBooks) {
           setLibraryBooks(importedData.libraryBooks);
-        if (importedData.assets) setAssets(importedData.assets);
+          persistCollectionAsync('libraryBooks', importedData.libraryBooks);
+        }
+        if (importedData.assets) {
+          setAssets(importedData.assets);
+          persistCollectionAsync('assets', importedData.assets);
+        }
         return true;
       } catch {
         return false;
       }
     },
     onResetToDemoData: () => {
-      setStudents(MULTI_SCHOOL_STUDENTS);
-      setStaffList(MULTI_SCHOOL_STAFF);
-      setLeaveRequests(MULTI_SCHOOL_LEAVES);
-      setCrmLeads(MULTI_SCHOOL_LEADS);
-      setBirthdays(MULTI_SCHOOL_BIRTHDAYS);
-      setCirculars(MULTI_SCHOOL_CIRCULARS);
-      setFeeReceipts(MULTI_SCHOOL_FEE_RECEIPTS);
-      setTcRecords(MULTI_SCHOOL_TC_RECORDS);
-      setLibraryBooks(MULTI_SCHOOL_LIBRARY_BOOKS);
-      setAssets(MULTI_SCHOOL_ASSETS);
-      setUsers(MULTI_SCHOOL_USERS);
-      setClassesList(MULTI_SCHOOL_CLASSES);
-      setSubjectsList(MULTI_SCHOOL_SUBJECTS);
-      setTimetablesList(MULTI_SCHOOL_TIMETABLES);
+      // Demo data seeding is permanently disabled; reload live persisted records instead
+      void hydrateFromBackend();
       setPermissionMatrix(DEFAULT_ROLE_PERMISSIONS);
       setMenuVisibility({});
       setManagedMenus(createInitialManagedMenus());
@@ -966,8 +1175,8 @@ function ErpWorkspace() {
 
   const handleStudentBusCheckIn = (studentId: string, routeId: string) => {
     handlers.onAddAuditLog({
-      userID: 'TRANSPORT',
-      userName: 'Bus QR Scanner',
+      userID: activeActorId,
+      userName: activeActorName,
       actionType: 'OTHER',
       referenceID: `${studentId}-${routeId}`,
       remarks: `Student ${studentId} boarded bus route ${routeId}`,
@@ -978,20 +1187,22 @@ function ErpWorkspace() {
     assetCode: string,
     action: 'checkin' | 'checkout'
   ) => {
-    setAssets((prev) =>
-      prev.map((a) =>
+    setAssets((prev) => {
+      const next = prev.map((a) =>
         a.assetCode === assetCode
           ? {
               ...a,
-              condition: 'Excellent',
+              condition: 'Excellent' as const,
               assignedTo:
                 action === 'checkout'
-                  ? 'Dr. Rajesh Sharma (Faculty)'
-                  : 'Central Laboratory Locker',
+                  ? activeActorName
+                  : 'Central Inventory Store',
             }
           : a
-      )
-    );
+      );
+      persistCollectionAsync('assets', next);
+      return next;
+    });
   };
 
   if (!isLoggedIn) {
@@ -1011,7 +1222,7 @@ function ErpWorkspace() {
         onSelectSection={handleNavigate}
         onLogout={handleLogout}
         userRole={currentUserRole}
-        onSwitchRole={handleSwitchPreviewRole}
+        currentUser={currentUser}
         managedMenus={managedMenus}
         permissionMatrix={permissionMatrix}
         menuVisibility={menuVisibility}
@@ -1028,7 +1239,7 @@ function ErpWorkspace() {
         staffList={scopedStaff}
         onSelectStudent={(std) => setSelectedStudentForModal(std)}
         unreadNotifCount={
-          scopedLeaves.filter((r) => r.status === 'Pending').length + 1
+          scopedLeaves.filter((r) => r.status === 'Pending').length
         }
         onOpenNotifications={() => setIsNotificationOpen(true)}
         onOpenQRScanner={() => handleOpenQRScanner('all')}

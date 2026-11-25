@@ -42,6 +42,7 @@ import {
   SchoolClass,
   SchoolSubject,
   Staff,
+  Student,
   SystemUser,
   TimetableEntry,
 } from '../types';
@@ -51,6 +52,10 @@ import { useSchoolContext } from '../contexts/SchoolContext';
 import { getCampusNameById, getSchoolNameById } from '../data/schoolContext';
 import { DatabaseArchitecturePanel } from './DatabaseArchitecturePanel';
 import { MenuManagementModule } from './MenuManagementModule';
+import {
+  PortalRegistrationPayload,
+  ResponsiveRegistrationForm,
+} from './ResponsiveRegistrationForm';
 import {
   EnterpriseConfirmDialog,
   EnterpriseDataTable,
@@ -87,9 +92,10 @@ interface AdminManagementHubProps {
   subItem?: string;
   currentRole: ErpRole;
   staffList: Staff[];
+  students?: Student[];
   users: SystemUser[];
-  onAddUser: (user: Omit<SystemUser, 'id'>) => void;
-  onUpdateUser: (user: SystemUser) => void;
+  onAddUser: (user: Omit<SystemUser, 'id'> & { password?: string }) => void | Promise<void>;
+  onUpdateUser: (user: SystemUser) => void | Promise<void>;
   onDeleteUser: (id: string) => void;
   onToggleUserStatus: (id: string) => void;
   onResetPassword: (id: string) => void;
@@ -184,6 +190,7 @@ export const AdminManagementHub: React.FC<AdminManagementHubProps> = ({
   subItem,
   currentRole,
   staffList,
+  students = [],
   users,
   onAddUser,
   onUpdateUser,
@@ -278,28 +285,12 @@ export const AdminManagementHub: React.FC<AdminManagementHubProps> = ({
     setTimeout(() => setToastMessage(null), 3500);
   };
 
-  // User form state
-  const [userForm, setUserForm] = useState<{
-    username: string;
-    fullName: string;
-    email: string;
-    phone: string;
-    role: ErpRole;
-    schoolId: string;
-    campusId: string;
-    department: string;
-    status: 'Active' | 'Inactive';
-  }>({
-    username: '',
-    fullName: '',
-    email: '',
-    phone: '',
-    role: 'Teacher',
-    schoolId: selectedSchoolId === 'all' ? 'sch-leaders-cbse' : selectedSchoolId,
-    campusId: selectedCampusId === 'all' ? 'all' : selectedCampusId,
-    department: 'Academics',
-    status: 'Active',
-  });
+  const defaultSchoolFallback =
+    selectedSchoolId === 'all' ? schools[0]?.id || '' : selectedSchoolId;
+  const defaultCampusFallback =
+    selectedCampusId === 'all'
+      ? schools.find((s) => s.id === defaultSchoolFallback)?.campuses[0]?.id || ''
+      : selectedCampusId;
 
   // Class form state
   const [classForm, setClassForm] = useState({
@@ -361,52 +352,73 @@ export const AdminManagementHub: React.FC<AdminManagementHubProps> = ({
     );
   }, [activeStaffPool, ttTeacherSearch]);
 
-  // Handlers for User
+  // Handlers for User Create & Edit via ResponsiveRegistrationForm
   const handleOpenUserModal = (u?: SystemUser) => {
-    if (u) {
-      setEditingUser(u);
-      setUserForm({
-        username: u.username,
-        fullName: u.fullName,
-        email: u.email,
-        phone: u.phone,
-        role: u.role,
-        schoolId: u.schoolId,
-        campusId: u.campusId,
-        department: u.department || 'General',
-        status: u.status,
-      });
-    } else {
-      setEditingUser(null);
-      setUserForm({
-        username: '',
-        fullName: '',
-        email: '',
-        phone: '',
-        role: 'Teacher',
-        schoolId: selectedSchoolId === 'all' ? schools[0]?.id || 'sch-leaders-cbse' : selectedSchoolId,
-        campusId: selectedCampusId === 'all' ? 'all' : selectedCampusId,
-        department: 'Academics',
-        status: 'Active',
-      });
-    }
+    setEditingUser(u || null);
     setIsUserModalOpen(true);
   };
 
-  const handleSaveUser = (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSavePortalUser = async (payload: PortalRegistrationPayload) => {
     if (editingUser) {
-      onUpdateUser({ ...editingUser, ...userForm });
-      showToast(`User "${userForm.username}" (${userForm.role}) updated.`);
-    } else {
-      onAddUser({
-        ...userForm,
-        lastLogin: 'Never logged in',
-        passwordResetRequired: true,
+      await onUpdateUser({
+        ...editingUser,
+        username: payload.username,
+        fullName: payload.fullName,
+        email: payload.email,
+        phone: payload.phone,
+        dob: payload.dob,
+        gender: payload.gender,
+        address: payload.address,
+        roleId: payload.roleId,
+        role: payload.role,
+        organizationId: payload.organizationId,
+        accessScope: payload.accessScope,
+        schoolId: payload.schoolId,
+        campusId: payload.campusId,
+        schoolIds: payload.schoolIds,
+        campusIds: payload.campusIds,
+        academicYearId: payload.academicYearId,
+        classId: payload.classId,
+        section: payload.section,
+        linkedStudentIds: payload.linkedStudentIds,
+        department: payload.department || editingUser.department,
+        status: payload.status,
+        password: payload.password,
       });
-      showToast(`Created user "${userForm.username}" with role ${userForm.role}.`);
+      showToast(`User "${payload.fullName}" (${payload.role}) updated.`);
+    } else {
+      await onAddUser({
+        username: payload.username,
+        fullName: payload.fullName,
+        email: payload.email,
+        phone: payload.phone,
+        dob: payload.dob,
+        gender: payload.gender,
+        address: payload.address,
+        roleId: payload.roleId,
+        role: payload.role,
+        organizationId: payload.organizationId,
+        accessScope: payload.accessScope,
+        schoolId: payload.schoolId,
+        campusId: payload.campusId,
+        schoolIds: payload.schoolIds,
+        campusIds: payload.campusIds,
+        academicYearId: payload.academicYearId,
+        classId: payload.classId,
+        section: payload.section,
+        linkedStudentIds: payload.linkedStudentIds,
+        department: payload.department,
+        status: payload.status,
+        password: payload.password,
+        lastLogin: 'Never logged in',
+        passwordResetRequired: false,
+      });
+      showToast(
+        `Created user "${payload.fullName}" with role ${payload.role}.`
+      );
     }
     setIsUserModalOpen(false);
+    setEditingUser(null);
   };
 
   // Handlers for Class & Section
@@ -461,8 +473,8 @@ export const AdminManagementHub: React.FC<AdminManagementHubProps> = ({
       showToast(`Updated "${classForm.gradeName}" (Class Teacher: ${resolvedTeacher || 'Unassigned'}).`);
     } else {
       onAddClass({
-        schoolId: selectedSchoolId === 'all' ? 'sch-leaders-cbse' : selectedSchoolId,
-        campusId: selectedCampusId === 'all' ? 'cmp-chennai-hq' : selectedCampusId,
+        schoolId: defaultSchoolFallback,
+        campusId: defaultCampusFallback,
         gradeName: classForm.gradeName.trim(),
         curriculum: classForm.curriculum,
         sections: sectionsArr,
@@ -506,7 +518,7 @@ export const AdminManagementHub: React.FC<AdminManagementHubProps> = ({
     } else {
       onAddSubject({
         ...subjectForm,
-        schoolId: selectedSchoolId === 'all' ? 'sch-leaders-cbse' : selectedSchoolId,
+        schoolId: defaultSchoolFallback,
       });
       showToast(`Created subject "${subjectForm.name}".`);
     }
@@ -558,15 +570,13 @@ export const AdminManagementHub: React.FC<AdminManagementHubProps> = ({
       onAddTimetable({
         ...timetableForm,
         teacherName: resolvedTeacher,
-        schoolId: selectedSchoolId === 'all' ? 'sch-leaders-cbse' : selectedSchoolId,
-        campusId: selectedCampusId === 'all' ? 'cmp-chennai-hq' : selectedCampusId,
+        schoolId: defaultSchoolFallback,
+        campusId: defaultCampusFallback,
       });
       showToast('Added timetable period.');
     }
     setIsTimetableModalOpen(false);
   };
-
-  const selectedFormSchool = schools.find((s) => s.id === userForm.schoolId);
 
   // Table column definitions
   const userColumns: TableColumn<SystemUser>[] = [
@@ -600,17 +610,66 @@ export const AdminManagementHub: React.FC<AdminManagementHubProps> = ({
       key: 'scope',
       header: 'School & Campus Scope',
       sortable: true,
-      sortValue: (u) => getSchoolNameById(u.schoolId, schools),
-      render: (u) => (
-        <div>
-          <p className="font-medium text-slate-800">
-            {getSchoolNameById(u.schoolId, schools)}
-          </p>
-          <p className="text-[10.5px] text-slate-500">
-            {getCampusNameById(u.schoolId, u.campusId, schools)}
-          </p>
-        </div>
-      ),
+      sortValue: (u) =>
+        u.accessScope === 'all_schools' || u.schoolId === 'all'
+          ? 'All Schools'
+          : u.accessScope === 'selected_schools'
+          ? `Selected Schools (${u.schoolIds?.length || 0})`
+          : getSchoolNameById(u.schoolId, schools),
+      render: (u) => {
+        const isAllSchools =
+          u.accessScope === 'all_schools' || u.schoolId === 'all';
+        const isSelectedSchools =
+          u.accessScope === 'selected_schools' &&
+          Array.isArray(u.schoolIds) &&
+          u.schoolIds.length > 0;
+
+        if (isAllSchools) {
+          return (
+            <div>
+              <span className="inline-flex items-center px-2 py-0.5 rounded bg-blue-50 text-[#1d4ed8] border border-blue-200 font-semibold text-[10.5px]">
+                All Schools
+              </span>
+              <p className="text-[10.5px] text-slate-500 mt-0.5">
+                {u.organizationId
+                  ? 'All schools in assigned organization'
+                  : 'All platform schools'}
+              </p>
+            </div>
+          );
+        }
+
+        if (isSelectedSchools) {
+          const names = (u.schoolIds || [])
+            .map((sid) => getSchoolNameById(sid, schools))
+            .slice(0, 2);
+          const extraCount = Math.max(0, (u.schoolIds?.length || 0) - 2);
+          return (
+            <div>
+              <span className="inline-flex items-center px-2 py-0.5 rounded bg-amber-50 text-[#8A6712] border border-[#D4AF37]/40 font-semibold text-[10.5px]">
+                Selected Schools ({u.schoolIds?.length})
+              </span>
+              <p className="text-[10.5px] text-slate-500 mt-0.5 truncate max-w-[220px]">
+                {names.join(', ')}
+                {extraCount > 0 ? ` +${extraCount} more` : ''}
+              </p>
+            </div>
+          );
+        }
+
+        return (
+          <div>
+            <p className="font-medium text-slate-800">
+              {getSchoolNameById(u.schoolId, schools)}
+            </p>
+            <p className="text-[10.5px] text-slate-500">
+              {u.campusIds && u.campusIds.length > 1
+                ? `${u.campusIds.length} Assigned Campuses`
+                : getCampusNameById(u.schoolId, u.campusId, schools)}
+            </p>
+          </div>
+        );
+      },
     },
     {
       key: 'status',
@@ -1738,140 +1797,35 @@ export const AdminManagementHub: React.FC<AdminManagementHubProps> = ({
         </div>
       )}
 
-      {/* CREATE / EDIT USER MODAL */}
-      <EnterpriseFormModal
-        isOpen={isUserModalOpen}
-        onClose={() => setIsUserModalOpen(false)}
-        title={editingUser ? 'Edit User Account & Scope' : 'Create Multi-School User Account'}
-        subtitle="Assign role, school isolation tenant, and campus-level restriction"
-      >
-        <form onSubmit={handleSaveUser} className="space-y-3.5 text-xs">
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block font-semibold text-[#0B1F3A] mb-1">Full Name *</label>
-              <input
-                type="text"
-                required
-                value={userForm.fullName}
-                onChange={(e) => setUserForm({ ...userForm, fullName: e.target.value })}
-                placeholder="e.g. Dr. Arun Kumar"
-                className="w-full px-3 py-2 bg-[#F8FAFC] border border-slate-300 rounded-lg"
-              />
-            </div>
-            <div>
-              <label className="block font-semibold text-[#0B1F3A] mb-1">Username *</label>
-              <input
-                type="text"
-                required
-                value={userForm.username}
-                onChange={(e) => setUserForm({ ...userForm, username: e.target.value })}
-                placeholder="e.g. arun_principal"
-                className="w-full px-3 py-2 bg-[#F8FAFC] border border-slate-300 rounded-lg font-mono"
-              />
-            </div>
+      {/* CREATE / EDIT USER MODAL (USING UPGRADED RESPONSIVE REGISTRATION FORM) */}
+      {isUserModalOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-[2px] p-3 sm:p-5 overflow-y-auto"
+          role="dialog"
+          aria-modal="true"
+          aria-label={
+            editingUser
+              ? 'Edit User Account & Access Scope'
+              : 'Create ERP User Account'
+          }
+        >
+          <div className="relative w-full max-w-4xl my-auto max-h-[92vh] overflow-y-auto rounded-2xl shadow-2xl">
+            <ResponsiveRegistrationForm
+              mode="portal"
+              currentActorRole={currentRole}
+              editingUser={editingUser}
+              availableClasses={classes}
+              availableStudents={students}
+              autoCloseOnSubmit={true}
+              onRegisterPortalUser={handleSavePortalUser}
+              onCancel={() => {
+                setIsUserModalOpen(false);
+                setEditingUser(null);
+              }}
+            />
           </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block font-semibold text-[#0B1F3A] mb-1">Email *</label>
-              <input
-                type="email"
-                required
-                value={userForm.email}
-                onChange={(e) => setUserForm({ ...userForm, email: e.target.value })}
-                className="w-full px-3 py-2 bg-[#F8FAFC] border border-slate-300 rounded-lg"
-              />
-            </div>
-            <div>
-              <label className="block font-semibold text-[#0B1F3A] mb-1">Phone</label>
-              <input
-                type="text"
-                value={userForm.phone}
-                onChange={(e) => setUserForm({ ...userForm, phone: e.target.value })}
-                placeholder="+91 98450 00000"
-                className="w-full px-3 py-2 bg-[#F8FAFC] border border-slate-300 rounded-lg"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="block font-semibold text-[#0B1F3A] mb-1">Assigned Role (19 Roles) *</label>
-            <select
-              value={userForm.role}
-              onChange={(e) =>
-                setUserForm({ ...userForm, role: e.target.value as ErpRole })
-              }
-              className="w-full px-3 py-2 bg-[#F8FAFC] border border-slate-300 rounded-lg font-semibold"
-            >
-              {ALL_ERP_ROLES.map((r) => (
-                <option key={r.role} value={r.role}>
-                  {r.index}. {r.role} — ({r.scope} Scope)
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block font-semibold text-[#0B1F3A] mb-1">
-                School Isolation Scope
-              </label>
-              <select
-                value={userForm.schoolId}
-                onChange={(e) =>
-                  setUserForm({
-                    ...userForm,
-                    schoolId: e.target.value,
-                    campusId: 'all',
-                  })
-                }
-                className="w-full px-3 py-2 bg-[#F8FAFC] border border-slate-300 rounded-lg"
-              >
-                <option value="all">All Schools (Platform / Org)</option>
-                {schools.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.shortName}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block font-semibold text-[#0B1F3A] mb-1">
-                Campus Access Restriction
-              </label>
-              <select
-                value={userForm.campusId}
-                disabled={userForm.schoolId === 'all'}
-                onChange={(e) => setUserForm({ ...userForm, campusId: e.target.value })}
-                className="w-full px-3 py-2 bg-[#F8FAFC] border border-slate-300 rounded-lg disabled:opacity-50"
-              >
-                <option value="all">All Campuses in School</option>
-                {selectedFormSchool?.campuses.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
-            <button
-              type="button"
-              onClick={() => setIsUserModalOpen(false)}
-              className="px-3.5 py-2 font-medium text-slate-600 hover:bg-slate-100 rounded-lg cursor-pointer"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="px-4 py-2 font-semibold bg-[#0B1F3A] hover:bg-[#132E54] text-white rounded-lg cursor-pointer"
-            >
-              {editingUser ? 'Save Changes' : 'Create Account'}
-            </button>
-          </div>
-        </form>
-      </EnterpriseFormModal>
+        </div>
+      )}
 
       {/* CREATE / EDIT CLASS MODAL — WITH LIVE SEARCHABLE STAFF PICKER FOR CLASS TEACHER */}
       <EnterpriseFormModal

@@ -20,7 +20,8 @@ import {
   Line,
   Legend,
 } from 'recharts';
-import { InstitutionalMetrics, SCHOOL_OPTIONS } from '../data/schoolContext';
+import { InstitutionalMetrics } from '../data/schoolContext';
+import { useSchoolContext } from '../contexts/SchoolContext';
 import {
   ModulePageHeader,
   EnterpriseMetricCard,
@@ -36,6 +37,7 @@ export const ReportsAnalyticsModule: React.FC<ReportsAnalyticsModuleProps> = ({
   subItem,
   metrics,
 }) => {
+  const { schools } = useSchoolContext();
   const [activeTab, setActiveTab] = useState<string>(subItem || 'rep-executive');
   const [downloadedMsg, setDownloadedMsg] = useState<string | null>(null);
 
@@ -43,8 +45,8 @@ export const ReportsAnalyticsModule: React.FC<ReportsAnalyticsModuleProps> = ({
     if (subItem) setActiveTab(subItem);
   }, [subItem]);
 
-  const schoolComparisonData = SCHOOL_OPTIONS.map((sch) => ({
-    name: sch.shortName.replace('Leaders ', ''),
+  const schoolComparisonData = schools.map((sch) => ({
+    name: sch.shortName,
     students: sch.campuses.reduce((a, c) => a + c.studentCount, 0),
     staff: sch.campuses.reduce((a, c) => a + c.staffCount, 0),
     feeLakhs: Number(sch.campuses.reduce((a, c) => a + c.feeCollectedLakhs, 0).toFixed(1)),
@@ -67,7 +69,10 @@ export const ReportsAnalyticsModule: React.FC<ReportsAnalyticsModuleProps> = ({
     setTimeout(() => setDownloadedMsg(null), 2400);
   };
 
-  const feePct = Math.round((metrics.feeCollectedLakhs / metrics.feeTargetLakhs) * 100);
+  const feePct =
+    metrics.feeTargetLakhs > 0
+      ? Math.round((metrics.feeCollectedLakhs / metrics.feeTargetLakhs) * 100)
+      : 0;
 
   return (
     <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-5">

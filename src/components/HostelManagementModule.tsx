@@ -30,19 +30,17 @@ interface RoomAllocation {
   status: 'Occupied' | 'On Home Leave';
 }
 
-const INITIAL_ALLOCATIONS: RoomAllocation[] = [
-  { id: 'hst-1', block: 'Chola Boys Block A', roomNo: 'A-204', studentName: 'Karthik Meyyappan', grade: 'Grade 11', warden: 'Mr. Senthil Kumar', messPlan: 'High-Protein Athletics', status: 'Occupied' },
-  { id: 'hst-2', block: 'Chola Boys Block A', roomNo: 'A-208', studentName: 'Pranav Venkataraman', grade: 'Grade 12', warden: 'Mr. Senthil Kumar', messPlan: 'Standard Veg', status: 'Occupied' },
-  { id: 'hst-3', block: 'Pallava Girls Block B', roomNo: 'B-112', studentName: 'Meenakshi Sundaram', grade: 'Grade 11', warden: 'Mrs. Lakshmi Devi', messPlan: 'Standard Veg', status: 'Occupied' },
-  { id: 'hst-4', block: 'Pallava Girls Block B', roomNo: 'B-115', studentName: 'Ananya Balasubramanian', grade: 'Grade 10', warden: 'Mrs. Lakshmi Devi', messPlan: 'International', status: 'On Home Leave' },
-  { id: 'hst-5', block: 'IB Senior Residence C', roomNo: 'C-301', studentName: 'Siddharth Nair', grade: 'IB DP-1', warden: 'Mr. David Raj', messPlan: 'International', status: 'Occupied' },
-];
+const INITIAL_ALLOCATIONS: RoomAllocation[] = [];
 
-const HOSTEL_BLOCKS = [
-  { id: 'blk-1', name: 'Chola Boys Block A', wing: 'Senior Boys', rooms: 40, capacity: 120, occupied: 108, warden: 'Mr. Senthil Kumar' },
-  { id: 'blk-2', name: 'Pallava Girls Block B', wing: 'Senior Girls', rooms: 36, capacity: 108, occupied: 96, warden: 'Mrs. Lakshmi Devi' },
-  { id: 'blk-3', name: 'IB Senior Residence C', wing: 'International Co-Ed Wings', rooms: 24, capacity: 48, occupied: 42, warden: 'Mr. David Raj' },
-];
+const HOSTEL_BLOCKS: {
+  id: string;
+  name: string;
+  wing: string;
+  rooms: number;
+  capacity: number;
+  occupied: number;
+  warden: string;
+}[] = [];
 
 export const HostelManagementModule: React.FC<HostelManagementModuleProps> = ({
   subItem,

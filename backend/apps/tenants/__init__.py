@@ -1,0 +1,1 @@
+"""Tenants hierarchy Django app."""
