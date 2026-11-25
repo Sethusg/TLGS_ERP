@@ -88,13 +88,13 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
       actionSection: 'HOME' as NavSection,
       actionLabel: 'Send Wishes',
     })),
-    // System maintenance & backup alert
+    // UI preview notice
     {
       id: 'notif-backup-status',
       type: 'system',
-      title: 'Database Cloud Backup Verification',
-      message: 'Automated nightly state snapshot completed successfully. 1,069 students, 120 staff, 305 leaves verified.',
-      timestamp: 'Yesterday, 11:45 PM',
+      title: 'Frontend UI Preview Mode',
+      message: 'Displaying sample preview data for initial ERP interface review. Django REST Framework and MySQL 8+ backend integration planned.',
+      timestamp: 'Today',
       read: readIds.has('notif-backup-status'),
       actionSection: 'SETTINGS',
       actionLabel: 'View Settings',
@@ -153,24 +153,21 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
     <div className="fixed inset-0 z-50 flex items-start justify-end p-2 sm:p-4 bg-slate-900/40 backdrop-blur-xs animate-in fade-in duration-150">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden border border-slate-200 flex flex-col max-h-[90vh] mt-12 sm:mr-2">
         {/* Header */}
-        <div className="px-5 py-4 bg-slate-900 text-white flex items-center justify-between">
+        <div className="px-5 py-4 bg-[#0B1F3A] text-white border-b border-[#D4AF37]/30 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-white relative">
+            <div className="w-8 h-8 rounded-lg bg-[#D4AF37]/20 border border-[#D4AF37]/40 flex items-center justify-center text-[#D4AF37] relative">
               <Bell className="w-4 h-4" />
-              {unreadCount > 0 && (
-                <span className="w-2 h-2 rounded-full bg-emerald-400 absolute top-1 right-1" />
-              )}
             </div>
             <div>
-              <h3 className="text-sm font-bold tracking-tight">THE LEADERS ACADEMY Notification Center</h3>
-              <p className="text-[11px] text-slate-400">
-                {unreadCount > 0 ? `${unreadCount} unread automated alerts` : 'All alerts caught up'}
+              <h3 className="text-sm font-bold tracking-tight">Notification Center</h3>
+              <p className="text-[11px] text-slate-300">
+                {unreadCount > 0 ? `${unreadCount} unread preview alerts` : 'All alerts caught up'}
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+            className="p-1 rounded-lg text-slate-300 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -271,11 +268,11 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="p-3 bg-gray-50 border-t border-gray-100 flex items-center justify-between text-[11px] text-gray-500">
-          <span>Synced with Live ERP Database</span>
+        <div className="p-3 bg-[#F8FAFC] border-t border-slate-200/80 flex items-center justify-between text-[11px] text-slate-500">
+          <span>Sample Preview Notification Feed</span>
           <button
             onClick={onClose}
-            className="px-3 py-1 bg-gray-800 text-white rounded-md font-semibold hover:bg-gray-900 transition-colors"
+            className="px-3 py-1 bg-[#0B1F3A] text-white rounded-md font-semibold hover:bg-[#132E54] transition-colors cursor-pointer"
           >
             Close
           </button>

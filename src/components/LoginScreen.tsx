@@ -159,21 +159,21 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
               {isLoading ? (
                 <span className="flex items-center gap-2">
                   <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
-                  Authenticating Session...
+                  Opening Preview Workspace...
                 </span>
               ) : (
                 <>
-                  <span>Sign In To Portal</span>
+                  <span>Enter ERP Preview</span>
                   <ArrowRight className="w-4 h-4 text-[#D4AF37]" />
                 </>
               )}
             </button>
           </form>
 
-          {/* Quick Demo Logins */}
+          {/* Quick Role Preview Logins */}
           <div className="pt-3 border-t border-slate-100">
             <p className="text-[11px] font-bold text-slate-500 mb-2 uppercase tracking-wider text-center">
-              Quick Role Switch Login
+              Quick Role Preview Switch
             </p>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
               <button
@@ -182,7 +182,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                 className="p-2 bg-slate-50 hover:bg-amber-50 border border-slate-200 hover:border-[#D4AF37] rounded-xl text-left transition-colors cursor-pointer group"
               >
                 <div className="text-[11px] font-bold text-slate-800 group-hover:text-[#0B1F3A]">Dr. Sethu</div>
-                <div className="text-[9px] text-slate-500 font-bold text-purple-700">Super Admin</div>
+                <div className="text-[9px] text-purple-700 font-bold">Super Admin</div>
               </button>
 
               <button
@@ -191,7 +191,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                 className="p-2 bg-slate-50 hover:bg-amber-50 border border-slate-200 hover:border-[#D4AF37] rounded-xl text-left transition-colors cursor-pointer group"
               >
                 <div className="text-[11px] font-bold text-slate-800 group-hover:text-[#0B1F3A]">Raj Kumar</div>
-                <div className="text-[9px] text-slate-500 font-bold text-emerald-700">POS Cashier</div>
+                <div className="text-[9px] text-emerald-700 font-bold">POS Cashier</div>
               </button>
 
               <button
@@ -200,7 +200,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                 className="p-2 bg-slate-50 hover:bg-amber-50 border border-slate-200 hover:border-[#D4AF37] rounded-xl text-left transition-colors cursor-pointer group"
               >
                 <div className="text-[11px] font-bold text-slate-800 group-hover:text-[#0B1F3A]">Anita S.</div>
-                <div className="text-[9px] text-slate-500 font-bold text-blue-700">Accountant</div>
+                <div className="text-[9px] text-blue-700 font-bold">Accountant</div>
               </button>
 
               <button
@@ -209,7 +209,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                 className="p-2 bg-slate-50 hover:bg-amber-50 border border-slate-200 hover:border-[#D4AF37] rounded-xl text-left transition-colors cursor-pointer group"
               >
                 <div className="text-[11px] font-bold text-slate-800 group-hover:text-[#0B1F3A]">Malini S.</div>
-                <div className="text-[9px] text-slate-500 font-bold text-sky-700">Teacher</div>
+                <div className="text-[9px] text-sky-700 font-bold">Teacher</div>
               </button>
 
               <button
@@ -218,7 +218,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                 className="p-2 bg-slate-50 hover:bg-amber-50 border border-slate-200 hover:border-[#D4AF37] rounded-xl text-left transition-colors cursor-pointer group"
               >
                 <div className="text-[11px] font-bold text-slate-800 group-hover:text-[#0B1F3A]">Vikram R.</div>
-                <div className="text-[9px] text-slate-500 font-bold text-amber-700">Canteen Manager</div>
+                <div className="text-[9px] text-amber-700 font-bold">Canteen Manager</div>
               </button>
             </div>
           </div>
@@ -226,7 +226,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
 
         {/* Footer */}
         <div className="px-6 py-3 bg-slate-50 border-t border-slate-100 text-center text-[10px] text-slate-500">
-          Secure AES-256 Encrypted Session · The Leaders Group of Schools © 2026
+          Frontend UI Preview · Django REST &amp; MySQL 8+ Integration Planned · The Leaders Group of Schools © 2026
         </div>
       </div>
     </div>

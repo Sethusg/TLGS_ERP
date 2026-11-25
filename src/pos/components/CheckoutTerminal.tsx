@@ -335,6 +335,14 @@ export const CheckoutTerminal: React.FC<CheckoutTerminalProps> = ({
         if (rule.min_quantity && totalQty < rule.min_quantity) return false;
       }
 
+      if (rule.condition_type === 'buy_x_get_y') {
+        const bx = rule.buy_qty || 2;
+        const gy = rule.get_qty || 1;
+        const targetId = rule.target_product_id;
+        const matchingItem = activeCart.find(i => !targetId || i.product.id === targetId || i.product.name.toLowerCase().includes(targetId.toLowerCase()));
+        if (!matchingItem || matchingItem.quantity < (bx + gy)) return false;
+      }
+
       if (rule.condition_type === 'category' && rule.condition_value) {
         const hasCategory = activeCart.some(i => i.product.category.toLowerCase() === rule.condition_value?.toLowerCase());
         if (!hasCategory) return false;
@@ -346,13 +354,23 @@ export const CheckoutTerminal: React.FC<CheckoutTerminalProps> = ({
 
   const ruleDiscountAmount = useMemo(() => {
     return appliedDiscountRules.reduce((sum, rule) => {
+      if (rule.condition_type === 'buy_x_get_y') {
+        const bx = rule.buy_qty || 2;
+        const gy = rule.get_qty || 1;
+        const targetId = rule.target_product_id;
+        const matchingItem = activeCart.find(i => !targetId || i.product.id === targetId || i.product.name.toLowerCase().includes(targetId.toLowerCase()));
+        if (!matchingItem) return sum;
+        const sets = Math.floor(matchingItem.quantity / (bx + gy));
+        const freeItemsCount = sets * gy;
+        return sum + (freeItemsCount * matchingItem.unit_price);
+      }
       if (rule.type === 'percentage') {
         return sum + (subtotal * rule.value) / 100;
       } else {
         return sum + rule.value;
       }
     }, 0);
-  }, [appliedDiscountRules, subtotal]);
+  }, [appliedDiscountRules, subtotal, activeCart]);
 
   const totalDiscount = percentageDiscountAmount + rewardDiscountAmount + ruleDiscountAmount;
   const taxableAmount = Math.max(0, subtotal - totalDiscount);

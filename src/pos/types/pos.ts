@@ -197,7 +197,7 @@ export interface InventoryMovement {
   created_at: string;
 }
 
-export type DiscountConditionType = 'category' | 'student_category' | 'time_of_day' | 'bulk_volume' | 'general';
+export type DiscountConditionType = 'category' | 'student_category' | 'time_of_day' | 'bulk_volume' | 'buy_x_get_y' | 'general';
 
 export interface DiscountRule {
   id: string;
@@ -209,6 +209,9 @@ export interface DiscountRule {
   condition_value?: string;
   min_purchase_amount?: number;
   min_quantity?: number;
+  buy_qty?: number;
+  get_qty?: number;
+  target_product_id?: string;
   start_time?: string;
   end_time?: string;
   is_active: boolean;

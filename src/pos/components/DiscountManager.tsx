@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { DiscountRule, DiscountConditionType, StoreSettings } from '../types/pos';
 import { formatCurrency } from '../utils/formatters';
-import { Tag, Plus, Trash2, Edit3, CheckCircle2, XCircle, Clock, Users, Boxes, Sparkles, X, Save } from 'lucide-react';
+import { Tag, Plus, Trash2, Edit3, CheckCircle2, XCircle, Clock, Users, Boxes, Sparkles, X, Save, Gift } from 'lucide-react';
 
 interface DiscountManagerProps {
   rules: DiscountRule[];
@@ -29,6 +29,9 @@ export const DiscountManager: React.FC<DiscountManagerProps> = ({
   const [conditionValue, setConditionValue] = useState('');
   const [minQuantity, setMinQuantity] = useState<number>(1);
   const [minPurchaseAmount, setMinPurchaseAmount] = useState<number>(0);
+  const [buyQty, setBuyQty] = useState<number>(2);
+  const [getQty, setGetQty] = useState<number>(1);
+  const [targetProductId, setTargetProductId] = useState('');
   const [startTime, setStartTime] = useState('14:00');
   const [endTime, setEndTime] = useState('17:00');
   const [isActive, setIsActive] = useState(true);
@@ -43,6 +46,9 @@ export const DiscountManager: React.FC<DiscountManagerProps> = ({
     setConditionValue('');
     setMinQuantity(1);
     setMinPurchaseAmount(0);
+    setBuyQty(2);
+    setGetQty(1);
+    setTargetProductId('');
     setStartTime('14:00');
     setEndTime('17:00');
     setIsActive(true);
@@ -59,6 +65,9 @@ export const DiscountManager: React.FC<DiscountManagerProps> = ({
     setConditionValue(rule.condition_value || '');
     setMinQuantity(rule.min_quantity || 1);
     setMinPurchaseAmount(rule.min_purchase_amount || 0);
+    setBuyQty(rule.buy_qty || 2);
+    setGetQty(rule.get_qty || 1);
+    setTargetProductId(rule.target_product_id || '');
     setStartTime(rule.start_time || '14:00');
     setEndTime(rule.end_time || '17:00');
     setIsActive(rule.is_active);
@@ -79,6 +88,9 @@ export const DiscountManager: React.FC<DiscountManagerProps> = ({
       condition_value: conditionValue.trim() || undefined,
       min_quantity: conditionType === 'bulk_volume' ? Number(minQuantity) || 1 : undefined,
       min_purchase_amount: minPurchaseAmount > 0 ? Number(minPurchaseAmount) : undefined,
+      buy_qty: conditionType === 'buy_x_get_y' ? Number(buyQty) || 2 : undefined,
+      get_qty: conditionType === 'buy_x_get_y' ? Number(getQty) || 1 : undefined,
+      target_product_id: conditionType === 'buy_x_get_y' ? targetProductId.trim() || undefined : undefined,
       start_time: conditionType === 'time_of_day' ? startTime : undefined,
       end_time: conditionType === 'time_of_day' ? endTime : undefined,
       is_active: isActive,
@@ -98,7 +110,6 @@ export const DiscountManager: React.FC<DiscountManagerProps> = ({
 
   return (
     <div className="space-y-6 max-w-[1600px] mx-auto p-4 lg:p-6 animate-fade-in text-xs">
-      {/* Header Toolbar */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 bg-neutral-900 border border-neutral-800 p-4 rounded-2xl shadow-xl">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400">
@@ -107,7 +118,7 @@ export const DiscountManager: React.FC<DiscountManagerProps> = ({
           <div>
             <h2 className="text-sm font-bold text-white uppercase tracking-wider">Canteen Discount Manager</h2>
             <p className="text-xs text-neutral-400">
-              Configure dynamic percentage and fixed discounts for Happy Hours, Student Categories, and Bulk Volume
+              Configure dynamic percentage, fixed, and Buy X Get Y promotions
             </p>
           </div>
         </div>
@@ -131,7 +142,6 @@ export const DiscountManager: React.FC<DiscountManagerProps> = ({
         </div>
       </div>
 
-      {/* Rules Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {filteredRules.length === 0 ? (
           <div className="col-span-full py-16 text-center bg-neutral-900/60 border border-neutral-800 rounded-2xl text-neutral-400">
@@ -147,7 +157,6 @@ export const DiscountManager: React.FC<DiscountManagerProps> = ({
                 rule.is_active ? 'border-neutral-800 hover:border-amber-500/40' : 'border-neutral-800/40 opacity-60'
               }`}
             >
-              {/* Top Row: Title & Status */}
               <div className="space-y-2">
                 <div className="flex items-start justify-between gap-2">
                   <div>
@@ -168,27 +177,32 @@ export const DiscountManager: React.FC<DiscountManagerProps> = ({
                   </span>
                 </div>
 
-                {/* Value Banner */}
                 <div className="p-3 bg-neutral-950 rounded-xl border border-neutral-800 flex items-center justify-between">
                   <span className="text-neutral-400 font-medium">Discount Value</span>
                   <span className="font-mono font-bold text-emerald-400 text-sm">
-                    {rule.type === 'percentage' ? `${rule.value}% OFF` : formatCurrency(rule.value, settings.currency_symbol) + ' OFF'}
+                    {rule.condition_type === 'buy_x_get_y'
+                      ? `Buy ${rule.buy_qty || 2} Get ${rule.get_qty || 1} Free`
+                      : rule.type === 'percentage'
+                      ? `${rule.value}% OFF`
+                      : formatCurrency(rule.value, settings.currency_symbol) + ' OFF'}
                   </span>
                 </div>
 
-                {/* Conditions Breakdown */}
                 <div className="space-y-1.5 pt-1 text-[11px] text-neutral-300">
                   <div className="flex items-center gap-2">
                     <span className="text-neutral-500 font-semibold w-24">Condition:</span>
                     <span className="capitalize text-amber-300 font-medium">
-                      {rule.condition_type.replace('_', ' ')}
+                      {rule.condition_type.replace(/_/g, ' ')}
                     </span>
                   </div>
 
-                  {rule.condition_value && (
+                  {rule.condition_type === 'buy_x_get_y' && (
                     <div className="flex items-center gap-2">
-                      <span className="text-neutral-500 font-semibold w-24">Target Value:</span>
-                      <span className="font-mono text-neutral-200">{rule.condition_value}</span>
+                      <span className="text-neutral-500 font-semibold w-24">Offer Promo:</span>
+                      <span className="font-mono text-amber-400 flex items-center gap-1">
+                        <Gift className="w-3 h-3" />
+                        Buy {rule.buy_qty || 2}, Get {rule.get_qty || 1} Free
+                      </span>
                     </div>
                   )}
 
@@ -214,7 +228,6 @@ export const DiscountManager: React.FC<DiscountManagerProps> = ({
                 </div>
               </div>
 
-              {/* Actions Footer */}
               <div className="pt-3 border-t border-neutral-800 flex items-center justify-end gap-2">
                 <button
                   type="button"
@@ -242,7 +255,6 @@ export const DiscountManager: React.FC<DiscountManagerProps> = ({
         )}
       </div>
 
-      {/* Create / Edit Modal */}
       {isModalOpen && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in"
@@ -275,7 +287,7 @@ export const DiscountManager: React.FC<DiscountManagerProps> = ({
                     required
                     value={title}
                     onChange={(e) => setTitle(e.target.value)}
-                    placeholder="e.g. Afternoon Snack Happy Hour"
+                    placeholder="e.g. Buy 2 Burgers Get 1 Free"
                     className="w-full bg-neutral-950 border border-neutral-800 rounded-lg px-3 py-2 text-neutral-100 focus:outline-none focus:border-amber-500"
                   />
                 </div>
@@ -286,38 +298,40 @@ export const DiscountManager: React.FC<DiscountManagerProps> = ({
                     required
                     value={code}
                     onChange={(e) => setCode(e.target.value)}
-                    placeholder="e.g. HAPPY_HOUR_15"
+                    placeholder="e.g. B2G1_BURGER"
                     className="w-full bg-neutral-950 border border-neutral-800 rounded-lg px-3 py-2 text-neutral-100 font-mono uppercase focus:outline-none focus:border-amber-500"
                   />
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-neutral-300 font-medium mb-1">Discount Type</label>
-                  <select
-                    value={type}
-                    onChange={(e) => setType(e.target.value as 'percentage' | 'fixed')}
-                    className="w-full bg-neutral-950 border border-neutral-800 rounded-lg px-3 py-2 text-neutral-100 font-semibold focus:outline-none focus:border-amber-500"
-                  >
-                    <option value="percentage">Percentage (%)</option>
-                    <option value="fixed">Fixed Amount ({settings.currency_symbol})</option>
-                  </select>
+              {conditionType !== 'buy_x_get_y' && (
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-neutral-300 font-medium mb-1">Discount Type</label>
+                    <select
+                      value={type}
+                      onChange={(e) => setType(e.target.value as 'percentage' | 'fixed')}
+                      className="w-full bg-neutral-950 border border-neutral-800 rounded-lg px-3 py-2 text-neutral-100 font-semibold focus:outline-none focus:border-amber-500"
+                    >
+                      <option value="percentage">Percentage (%)</option>
+                      <option value="fixed">Fixed Amount ({settings.currency_symbol})</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-neutral-300 font-medium mb-1">
+                      {type === 'percentage' ? 'Percentage Value (%)' : `Fixed Amount (${settings.currency_symbol})`}
+                    </label>
+                    <input
+                      type="number"
+                      step={type === 'percentage' ? '1' : '5'}
+                      required
+                      value={value}
+                      onChange={(e) => setValue(parseFloat(e.target.value) || 0)}
+                      className="w-full bg-neutral-950 border border-neutral-800 rounded-lg px-3 py-2 text-emerald-400 font-mono font-bold focus:outline-none focus:border-amber-500"
+                    />
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-neutral-300 font-medium mb-1">
-                    {type === 'percentage' ? 'Percentage Value (%)' : `Fixed Amount (${settings.currency_symbol})`}
-                  </label>
-                  <input
-                    type="number"
-                    step={type === 'percentage' ? '1' : '5'}
-                    required
-                    value={value}
-                    onChange={(e) => setValue(parseFloat(e.target.value) || 0)}
-                    className="w-full bg-neutral-950 border border-neutral-800 rounded-lg px-3 py-2 text-emerald-400 font-mono font-bold focus:outline-none focus:border-amber-500"
-                  />
-                </div>
-              </div>
+              )}
 
               <div>
                 <label className="block text-neutral-300 font-medium mb-1">Condition Trigger Type</label>
@@ -330,9 +344,35 @@ export const DiscountManager: React.FC<DiscountManagerProps> = ({
                   <option value="student_category">Student / Staff Category (e.g. staff, student)</option>
                   <option value="time_of_day">Time of Day / Happy Hour (e.g. 14:00 - 17:00)</option>
                   <option value="bulk_volume">Bulk Purchase Volume (Min Item Count)</option>
+                  <option value="buy_x_get_y">Buy X Get Y Free Promotion</option>
                   <option value="category">Product Category (e.g. Beverages, Hot Lunch)</option>
                 </select>
               </div>
+
+              {conditionType === 'buy_x_get_y' && (
+                <div className="grid grid-cols-2 gap-3 p-3 bg-neutral-950 rounded-xl border border-neutral-800">
+                  <div>
+                    <label className="block text-neutral-400 text-[11px] mb-1 font-semibold">Buy Quantity (X)</label>
+                    <input
+                      type="number"
+                      min="1"
+                      value={buyQty}
+                      onChange={(e) => setBuyQty(parseInt(e.target.value) || 2)}
+                      className="w-full bg-neutral-900 border border-neutral-700 rounded-lg px-3 py-1.5 text-amber-400 font-mono font-bold focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-neutral-400 text-[11px] mb-1 font-semibold">Get Free Quantity (Y)</label>
+                    <input
+                      type="number"
+                      min="1"
+                      value={getQty}
+                      onChange={(e) => setGetQty(parseInt(e.target.value) || 1)}
+                      className="w-full bg-neutral-900 border border-neutral-700 rounded-lg px-3 py-1.5 text-emerald-400 font-mono font-bold focus:outline-none"
+                    />
+                  </div>
+                </div>
+              )}
 
               {conditionType === 'student_category' && (
                 <div>

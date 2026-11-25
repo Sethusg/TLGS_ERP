@@ -1,22 +1,30 @@
 export type NavSection =
   | 'HOME'
+  | 'ORGANIZATION'
+  | 'ACADEMICS'
   | 'STUDENT'
   | 'STAFFS'
+  | 'ATTENDANCE'
+  | 'FEE MANAGEMENT'
   | 'MARKCHART'
+  | 'HR'
+  | 'FINANCE'
+  | 'LIBRARY'
+  | 'TRANSPORT'
+  | 'HOSTEL'
+  | 'INVENTORY'
+  | 'COMMUNICATIONS'
+  | 'REPORTS'
+  | 'ADMIN'
   | 'LMS'
   | 'CONTACT'
-  | 'ACADEMICS'
-  | 'TRANSPORT'
   | 'SCHOOL'
-  | 'ADMIN'
-  | 'FEE MANAGEMENT'
   | 'TC'
   | 'SETTINGS'
   | 'ASSET'
   | 'SUPPLIES'
   | 'ID_CARDS'
-  | 'CANTEEN'
-  | 'COMMUNICATIONS';
+  | 'CANTEEN';
 
 export type SubMenuAction = {
   label: string;
