@@ -2,6 +2,8 @@ import React, { useState, useMemo } from 'react';
 import { Product, InventoryMovement, StoreSettings, ProductCategory } from '../types/pos';
 import { formatCurrency, formatDateTime, exportInventoryToCSV } from '../utils/formatters';
 import { ProductVisual } from './ProductVisual';
+import { BulkInventoryImportModal } from './BulkInventoryImportModal';
+import { BulkImportPayload } from '../utils/inventoryImport';
 import {
   Boxes,
   Search,
@@ -9,6 +11,7 @@ import {
   AlertTriangle,
   History,
   Download,
+  Upload,
   Edit2,
   SlidersHorizontal,
   PackageCheck,
@@ -38,6 +41,7 @@ interface InventoryManagerProps {
   onAddCategory: (category: ProductCategory) => void;
   onUpdateCategory: (category: ProductCategory, oldName?: string) => void;
   onDeleteCategory: (categoryId: string, reassignToCatName?: string) => void;
+  onBulkImportProducts?: (payload: BulkImportPayload) => void;
 }
 
 export const InventoryManager: React.FC<InventoryManagerProps> = ({
@@ -53,6 +57,7 @@ export const InventoryManager: React.FC<InventoryManagerProps> = ({
   onAddCategory,
   onUpdateCategory,
   onDeleteCategory,
+  onBulkImportProducts,
 }) => {
   const [productToDelete, setProductToDelete] = useState<Product | null>(null);
   const [activeTab, setActiveTab] = useState<'catalogue' | 'categories' | 'movements'>('catalogue');
@@ -60,6 +65,8 @@ export const InventoryManager: React.FC<InventoryManagerProps> = ({
   const [categoryFilter, setCategoryFilter] = useState('All');
   const [healthFilter, setHealthFilter] = useState<'All' | 'Low' | 'OutOfStock' | 'Healthy'>('All');
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
+  const [isBulkImportOpen, setIsBulkImportOpen] = useState(false);
+  const [bulkImportFeedback, setBulkImportFeedback] = useState<string | null>(null);
 
   // Category Edit state
   const [editingCategory, setEditingCategory] = useState<ProductCategory | null>(null);
@@ -174,11 +181,22 @@ export const InventoryManager: React.FC<InventoryManagerProps> = ({
           </p>
         </div>
 
-        <div className="flex items-center gap-2.5 shrink-0">
+        <div className="flex items-center gap-2.5 flex-wrap shrink-0">
+          {onBulkImportProducts && (
+            <button
+              type="button"
+              onClick={() => setIsBulkImportOpen(true)}
+              className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 rounded-xl transition-colors cursor-pointer"
+            >
+              <Upload className="w-3.5 h-3.5" />
+              <span>Import CSV / Excel</span>
+            </button>
+          )}
+
           <button
             type="button"
             onClick={() => exportInventoryToCSV(products)}
-            className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-neutral-200 bg-neutral-800 hover:bg-neutral-700 border border-neutral-700/60 rounded-xl transition-colors"
+            className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-neutral-200 bg-neutral-800 hover:bg-neutral-700 border border-neutral-700/60 rounded-xl transition-colors cursor-pointer"
           >
             <Download className="w-3.5 h-3.5" />
             <span>Export CSV</span>
@@ -187,7 +205,7 @@ export const InventoryManager: React.FC<InventoryManagerProps> = ({
           <button
             type="button"
             onClick={() => setIsCategoryModalOpen(true)}
-            className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-neutral-200 bg-neutral-800 hover:bg-neutral-700 border border-neutral-700/60 rounded-xl transition-colors"
+            className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-neutral-200 bg-neutral-800 hover:bg-neutral-700 border border-neutral-700/60 rounded-xl transition-colors cursor-pointer"
           >
             <FolderPlus className="w-3.5 h-3.5" />
             <span>New Category</span>
@@ -196,13 +214,30 @@ export const InventoryManager: React.FC<InventoryManagerProps> = ({
           <button
             type="button"
             onClick={onOpenAddProduct}
-            className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-neutral-950 bg-amber-500 hover:bg-amber-400 rounded-xl transition-colors shadow"
+            className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-neutral-950 bg-amber-500 hover:bg-amber-400 rounded-xl transition-colors shadow cursor-pointer"
           >
             <Plus className="w-4 h-4" />
             <span>Add Item</span>
           </button>
         </div>
       </div>
+
+      {bulkImportFeedback && (
+        <div className="px-4 py-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+            <span className="font-medium">{bulkImportFeedback}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setBulkImportFeedback(null)}
+            className="text-emerald-400 hover:text-white cursor-pointer"
+            aria-label="Dismiss import message"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
 
       {/* KPI Cards Strip */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -1101,6 +1136,26 @@ export const InventoryManager: React.FC<InventoryManagerProps> = ({
           </div>
         </div>
       )}
+      {/* BULK CSV / EXCEL IMPORT MODAL */}
+      <BulkInventoryImportModal
+        isOpen={isBulkImportOpen}
+        products={products}
+        categories={categories}
+        settings={settings}
+        onClose={() => setIsBulkImportOpen(false)}
+        onConfirmImport={(payload) => {
+          onBulkImportProducts?.(payload);
+          const createdCount = payload.validRows.filter((r) => r.action === 'create').length;
+          const updatedCount = payload.validRows.filter((r) => r.action === 'update').length;
+          setBulkImportFeedback(
+            `Imported "${payload.fileName}": ${createdCount} new ${
+              createdCount === 1 ? 'product' : 'products'
+            } created, ${updatedCount} existing ${
+              updatedCount === 1 ? 'SKU' : 'SKUs'
+            } updated.`
+          );
+        }}
+      />
     </div>
   );
 };

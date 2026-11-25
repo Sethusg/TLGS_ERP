@@ -8,12 +8,18 @@ import {
   X,
   Building2,
 } from 'lucide-react';
-import { NavSection } from '../types';
+import {
+  ManagedMainMenu,
+  MenuVisibilityMap,
+  NavSection,
+  RolePermissionMatrix,
+} from '../types';
 import { LeadersSchoolLogo } from './LeadersSchoolLogo';
 import {
   getMenusForRole,
+  getVisibleSidebarMenus,
   resolveParentMenuId,
-  MainMenuItemDef,
+  SidebarResolvedMainMenu,
 } from '../config/navigation';
 import { NavAppearanceSettings } from './Modals/NavAppearanceModal';
 
@@ -22,6 +28,11 @@ interface SidebarNavProps {
   activeSubItem?: string;
   onSelectSection: (section: NavSection, subItem?: string) => void;
   userRole?: string;
+  managedMenus?: ManagedMainMenu[];
+  selectedSchoolId?: string;
+  selectedCampusId?: string;
+  permissionMatrix?: RolePermissionMatrix;
+  menuVisibility?: MenuVisibilityMap;
   isCollapsed: boolean;
   onToggleCollapse: () => void;
   isMobileOpen: boolean;
@@ -37,6 +48,11 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({
   activeSubItem,
   onSelectSection,
   userRole,
+  managedMenus,
+  selectedSchoolId = 'all',
+  selectedCampusId = 'all',
+  permissionMatrix,
+  menuVisibility,
   isCollapsed,
   onToggleCollapse,
   isMobileOpen,
@@ -51,19 +67,49 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({
   const [expandedMenus, setExpandedMenus] = useState<Record<string, boolean>>({
     [activeParentId]: true,
   });
-  const [hoveredFlyout, setHoveredFlyout] = useState<NavSection | null>(null);
+  const [hoveredFlyout, setHoveredFlyout] = useState<string | null>(null);
 
   useEffect(() => {
     setExpandedMenus((prev) => ({ ...prev, [activeParentId]: true }));
   }, [activeParentId]);
 
-  const effectiveMenus: MainMenuItemDef[] = useMemo(
-    () => getMenusForRole(userRole),
-    [userRole]
-  );
+  const effectiveMenus: SidebarResolvedMainMenu[] = useMemo(() => {
+    if (managedMenus && managedMenus.length > 0) {
+      return getVisibleSidebarMenus(
+        managedMenus,
+        userRole,
+        permissionMatrix,
+        selectedSchoolId,
+        selectedCampusId
+      );
+    }
+    return getMenusForRole(userRole, permissionMatrix, menuVisibility).map((m) => ({
+      menuId: m.id,
+      index: m.index,
+      id: m.id,
+      label: m.label,
+      shortLabel: m.shortLabel,
+      description: m.description,
+      icon: m.icon,
+      subItems: m.subItems.map((s, idx) => ({
+        id: `${m.id}-${idx}`,
+        label: s.label,
+        actionId: s.actionId,
+        targetSection: s.targetSection || m.id,
+        iconName: 'FolderKanban',
+      })),
+    }));
+  }, [
+    managedMenus,
+    userRole,
+    permissionMatrix,
+    menuVisibility,
+    selectedSchoolId,
+    selectedCampusId,
+  ]);
 
-  const handleToggleSubmenu = (id: NavSection) => {
-    setExpandedMenus((prev) => ({ ...prev, [id]: !prev[id] }));
+  const handleToggleSubmenu = (menuKey: string) => {
+    setExpandedMenus((prev) => ({ ...prev, [menuKey]: !prev[menuKey] }));
   };
 
   const handleNavigateAndClose = (section: NavSection, subItem?: string) => {
@@ -161,34 +207,35 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({
         )}
 
         {effectiveMenus.map((item) => {
-          const isActive = activeParentId === item.id;
-          const isExpanded = Boolean(expandedMenus[item.id]);
+          const isCustom = item.id === 'CUSTOM_MENU';
+          const isActive = isCustom
+            ? currentSection === 'CUSTOM_MENU' &&
+              (activeSubItem === item.menuId ||
+                item.subItems.some((s) => s.actionId === activeSubItem))
+            : activeParentId === item.id;
+          const isExpanded = Boolean(expandedMenus[item.menuId]);
           const Icon = item.icon;
           const firstSub = item.subItems[0];
 
           return (
             <div
-              key={item.id}
+              key={item.menuId}
               className="relative"
-              onMouseEnter={() => collapsed && setHoveredFlyout(item.id)}
+              onMouseEnter={() => collapsed && setHoveredFlyout(item.menuId)}
               onMouseLeave={() => collapsed && setHoveredFlyout(null)}
             >
               <button
                 type="button"
                 onClick={() => {
+                  const defaultTarget = firstSub?.targetSection || item.id;
+                  const defaultAction = firstSub?.actionId || item.menuId;
                   if (collapsed) {
-                    handleNavigateAndClose(
-                      firstSub?.targetSection || item.id,
-                      firstSub?.actionId
-                    );
+                    handleNavigateAndClose(defaultTarget, defaultAction);
                   } else if (!isActive) {
-                    onSelectSection(
-                      firstSub?.targetSection || item.id,
-                      firstSub?.actionId
-                    );
-                    setExpandedMenus((prev) => ({ ...prev, [item.id]: true }));
+                    onSelectSection(defaultTarget, defaultAction);
+                    setExpandedMenus((prev) => ({ ...prev, [item.menuId]: true }));
                   } else {
-                    handleToggleSubmenu(item.id);
+                    handleToggleSubmenu(item.menuId);
                   }
                 }}
                 style={
@@ -243,7 +290,7 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({
                         (!activeSubItem && sub.actionId === firstSub?.actionId));
                     return (
                       <button
-                        key={sub.actionId}
+                        key={sub.id}
                         type="button"
                         onClick={() => handleNavigateAndClose(targetSec, sub.actionId)}
                         className={`w-full text-left px-2.5 py-1.5 rounded-md text-[11.5px] transition-colors flex items-center gap-2 cursor-pointer ${
@@ -265,7 +312,7 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({
               )}
 
               {/* Collapsed Rail Flyout */}
-              {collapsed && hoveredFlyout === item.id && (
+              {collapsed && hoveredFlyout === item.menuId && (
                 <div className="hidden lg:block fixed left-[72px] -mt-10 ml-1 z-50 bg-[#0B1F3A] border border-[#D4AF37]/30 rounded-xl shadow-2xl py-2 min-w-[225px]">
                   <div className="px-3.5 py-1.5 border-b border-white/10">
                     <span className="text-[11px] font-bold tracking-wide text-[#D4AF37]">
@@ -279,7 +326,7 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({
                         currentSection === targetSec && activeSubItem === sub.actionId;
                       return (
                         <button
-                          key={sub.actionId}
+                          key={sub.id}
                           type="button"
                           onClick={() => handleNavigateAndClose(targetSec, sub.actionId)}
                           className={`w-full text-left px-3.5 py-1.5 text-xs transition-colors flex items-center justify-between cursor-pointer ${

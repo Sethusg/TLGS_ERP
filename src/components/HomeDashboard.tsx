@@ -42,10 +42,8 @@ import {
   BusRoute,
   NavSection,
 } from '../types';
-import {
-  InstitutionalMetrics,
-  SCHOOL_OPTIONS,
-} from '../data/schoolContext';
+import { InstitutionalMetrics } from '../data/schoolContext';
+import { useSchoolContext } from '../contexts/SchoolContext';
 import { EnterpriseFormModal } from './Common/EnterpriseUI';
 
 interface HomeDashboardProps {
@@ -93,6 +91,8 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
   onSendBirthdayWish,
   onAddLead,
 }) => {
+  const { schools, educationBoards } = useSchoolContext();
+
   const [birthdayTab, setBirthdayTab] = useState<
     'TODAY' | 'TOMORROW' | 'THIS WEEK' | 'THIS MONTH' | 'NEXT MONTH'
   >('TODAY');
@@ -119,13 +119,37 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
   const [newEventCategory, setNewEventCategory] =
     useState<DashboardEvent['category']>('Academic');
 
+  const chartsRef = useRef<HTMLElement>(null);
+  const activitiesRef = useRef<HTMLElement>(null);
   const operationsRef = useRef<HTMLElement>(null);
   const crmRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
-    if (activeSubItem === 'dashboard-operations') {
+    if (activeSubItem === 'dash-school') {
+      setStudentChartView('schools');
+      chartsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } else if (
+      activeSubItem === 'dash-campus' ||
+      activeSubItem === 'dash-students' ||
+      activeSubItem === 'dash-attendance' ||
+      activeSubItem === 'dash-fees' ||
+      activeSubItem === 'dash-finance' ||
+      activeSubItem === 'dash-staff'
+    ) {
+      setStudentChartView('wings');
+      chartsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } else if (
+      activeSubItem === 'dash-activities' ||
+      activeSubItem === 'dash-notifications'
+    ) {
+      activitiesRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } else if (activeSubItem === 'dashboard-operations') {
       operationsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    } else if (activeSubItem === 'dashboard-crm') {
+    } else if (
+      activeSubItem === 'dashboard-crm' ||
+      activeSubItem === 'dash-admissions'
+    ) {
+      setShowCRMList(true);
       crmRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
   }, [activeSubItem]);
@@ -145,7 +169,7 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
   });
 
   const pendingLeaveCount = leaveRequests.filter((r) => r.status === 'Pending').length;
-  const totalCampusesInGroup = SCHOOL_OPTIONS.reduce((a, s) => a + s.campuses.length, 0);
+  const totalCampusesInGroup = schools.reduce((a, s) => a + s.campuses.length, 0);
   const feePct = Math.min(
     100,
     Math.round((metrics.feeCollectedLakhs / metrics.feeTargetLakhs) * 100)
@@ -155,7 +179,7 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
   );
   const totalPendingAdmissions = metrics.pendingAdmissions + crmLeads.length;
 
-  const schoolEnrollmentChartData = SCHOOL_OPTIONS.map((s) => {
+  const schoolEnrollmentChartData = schools.map((s) => {
     const total = s.campuses.reduce((a, c) => a + c.studentCount, 0);
     return {
       wing: s.board,
@@ -262,14 +286,14 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
       icon: Building2,
       iconTone: 'bg-[#0B1F3A]/6 text-[#0B1F3A] border-[#0B1F3A]/10',
       actionLabel: 'Organization registry',
-      onClick: () => onNavigate('ORGANIZATION', 'org-trusts'),
+      onClick: () => onNavigate('ORGANIZATION', 'org-profile'),
     },
     {
       id: 'schools',
       label: 'Total Schools',
-      value: String(SCHOOL_OPTIONS.length),
-      meta: 'CBSE · ICSE · IB Curricula',
-      trend: '3 Boards',
+      value: String(metrics.schoolCount),
+      meta: `Platform total: ${schools.length} · ${educationBoards.length} Boards`,
+      trend: `${educationBoards.length} Boards`,
       trendPositive: true,
       icon: School,
       iconTone: 'bg-[#D4AF37]/15 text-[#8A6712] border-[#D4AF37]/30',
@@ -279,9 +303,9 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
     {
       id: 'campuses',
       label: 'Total Campuses',
-      value: String(totalCampusesInGroup),
-      meta: `Active scope: ${metrics.campusCount} campus${metrics.campusCount > 1 ? 'es' : ''}`,
-      trend: 'Chennai Metro',
+      value: String(metrics.campusCount),
+      meta: `Group network: ${totalCampusesInGroup} campuses`,
+      trend: 'Isolated Scope',
       trendPositive: true,
       icon: MapPin,
       iconTone: 'bg-[#0B1F3A]/6 text-[#0B1F3A] border-[#0B1F3A]/10',
@@ -475,7 +499,7 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
       </section>
 
       {/* 3 Core Analytics Charts: Student Statistics, Attendance, Fee Collection */}
-      <section aria-label="Institutional Analytics Charts" className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+      <section ref={chartsRef} aria-label="Institutional Analytics Charts" className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         {/* 1. Student Statistics Chart */}
         <div className="bg-white border border-slate-200/80 rounded-xl p-5 flex flex-col">
           <div className="flex items-start justify-between gap-2 mb-4">
@@ -672,7 +696,7 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
       </section>
 
       {/* Recent Activities & Upcoming Events */}
-      <section aria-label="Activities and Events" className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+      <section ref={activitiesRef} aria-label="Activities and Events" className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         {/* Recent Activities */}
         <div className="bg-white border border-slate-200/80 rounded-xl overflow-hidden flex flex-col">
           <div className="px-5 py-3.5 border-b border-slate-200/80 flex flex-wrap items-center justify-between gap-2">

@@ -1,5 +1,14 @@
 import React, { useState, useMemo } from 'react';
-import { Search, X, ChevronLeft, ChevronRight, ArrowUpDown } from 'lucide-react';
+import * as XLSX from 'xlsx';
+import {
+  Search,
+  X,
+  ChevronLeft,
+  ChevronRight,
+  ArrowUpDown,
+  Download,
+  AlertTriangle,
+} from 'lucide-react';
 
 export interface SubTabOption {
   id: string;
@@ -137,6 +146,7 @@ export interface TableColumn<T> {
   align?: 'left' | 'right' | 'center';
   sortable?: boolean;
   sortValue?: (row: T) => string | number;
+  exportValue?: (row: T) => string | number;
   render: (row: T) => React.ReactNode;
 }
 
@@ -151,6 +161,7 @@ interface EnterpriseDataTableProps<T> {
   emptyMessage?: string;
   toolbarRight?: React.ReactNode;
   pageSize?: number;
+  exportFileName?: string;
 }
 
 export function EnterpriseDataTable<T>({
@@ -164,6 +175,7 @@ export function EnterpriseDataTable<T>({
   emptyMessage = 'No matching records found.',
   toolbarRight,
   pageSize = 8,
+  exportFileName,
 }: EnterpriseDataTableProps<T>) {
   const [query, setQuery] = useState('');
   const [sortKey, setSortKey] = useState<string | null>(null);
@@ -208,9 +220,54 @@ export function EnterpriseDataTable<T>({
     }
   };
 
+  const handleExport = (format: 'csv' | 'xlsx') => {
+    const exportableCols = columns.filter((c) => c.exportValue || c.sortValue);
+    const rows = filtered.map((row) => {
+      const obj: Record<string, string | number> = {};
+      if (exportableCols.length > 0) {
+        exportableCols.forEach((col) => {
+          obj[col.header] = col.exportValue
+            ? col.exportValue(row)
+            : col.sortValue
+            ? col.sortValue(row)
+            : '';
+        });
+      } else {
+        Object.entries(row as Record<string, unknown>).forEach(([k, v]) => {
+          if (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean') {
+            obj[k] = String(v);
+          }
+        });
+      }
+      return obj;
+    });
+
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const baseName = (exportFileName || title || 'erp_export')
+      .replace(/[^a-zA-Z0-9_-]+/g, '_')
+      .toLowerCase();
+
+    if (format === 'xlsx') {
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Records');
+      XLSX.writeFile(wb, `${baseName}.xlsx`);
+    } else {
+      const csv = XLSX.utils.sheet_to_csv(ws);
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.setAttribute('href', url);
+      link.setAttribute('download', `${baseName}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    }
+  };
+
   return (
     <div className="bg-white border border-slate-200/80 rounded-xl overflow-hidden">
-      {(title || searchFilter || toolbarRight) && (
+      {(title || searchFilter || toolbarRight || exportFileName) && (
         <div className="px-5 py-3.5 border-b border-slate-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
             {title && (
@@ -234,6 +291,26 @@ export function EnterpriseDataTable<T>({
                   className="w-full pl-8 pr-3 py-1.5 text-xs bg-[#F8FAFC] border border-slate-200 rounded-lg focus:outline-none focus:border-[#0B1F3A] focus:bg-white transition-colors"
                 />
               </div>
+            )}
+            {exportFileName && filtered.length > 0 && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => handleExport('csv')}
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-semibold text-slate-700 bg-[#F8FAFC] hover:bg-slate-100 border border-slate-200 rounded-lg transition-colors cursor-pointer"
+                >
+                  <Download className="w-3 h-3 text-[#9A7418]" />
+                  <span>CSV</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleExport('xlsx')}
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-semibold text-[#0B1F3A] bg-[#D4AF37]/15 hover:bg-[#D4AF37]/25 border border-[#D4AF37]/40 rounded-lg transition-colors cursor-pointer"
+                >
+                  <Download className="w-3 h-3 text-[#8A6712]" />
+                  <span>Excel</span>
+                </button>
+              </>
             )}
             {toolbarRight}
           </div>
@@ -308,35 +385,37 @@ export function EnterpriseDataTable<T>({
         </table>
       </div>
 
-      {filtered.length > pageSize && (
+      {filtered.length > 0 && (
         <div className="px-4 py-2.5 border-t border-slate-100 bg-[#F8FAFC] flex items-center justify-between text-[11px] text-slate-500">
           <span className="tabular-nums">
             Showing {(safePage - 1) * pageSize + 1}–
             {Math.min(safePage * pageSize, filtered.length)} of {filtered.length} records
           </span>
-          <div className="flex items-center gap-1">
-            <button
-              type="button"
-              disabled={safePage <= 1}
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-              className="p-1 rounded border border-slate-200 bg-white text-slate-600 hover:text-[#0B1F3A] disabled:opacity-40 cursor-pointer"
-              aria-label="Previous page"
-            >
-              <ChevronLeft className="w-3.5 h-3.5" />
-            </button>
-            <span className="px-2 font-semibold text-[#0B1F3A] tabular-nums">
-              {safePage} / {totalPages}
-            </span>
-            <button
-              type="button"
-              disabled={safePage >= totalPages}
-              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-              className="p-1 rounded border border-slate-200 bg-white text-slate-600 hover:text-[#0B1F3A] disabled:opacity-40 cursor-pointer"
-              aria-label="Next page"
-            >
-              <ChevronRight className="w-3.5 h-3.5" />
-            </button>
-          </div>
+          {totalPages > 1 && (
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                disabled={safePage <= 1}
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                className="p-1 rounded border border-slate-200 bg-white text-slate-600 hover:text-[#0B1F3A] disabled:opacity-40 cursor-pointer"
+                aria-label="Previous page"
+              >
+                <ChevronLeft className="w-3.5 h-3.5" />
+              </button>
+              <span className="px-2 font-semibold text-[#0B1F3A] tabular-nums">
+                {safePage} / {totalPages}
+              </span>
+              <button
+                type="button"
+                disabled={safePage >= totalPages}
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                className="p-1 rounded border border-slate-200 bg-white text-slate-600 hover:text-[#0B1F3A] disabled:opacity-40 cursor-pointer"
+                aria-label="Next page"
+              >
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -348,6 +427,7 @@ interface EnterpriseFormModalProps {
   onClose: () => void;
   title: string;
   subtitle?: string;
+  maxWidthClass?: string;
   children: React.ReactNode;
 }
 
@@ -356,14 +436,22 @@ export const EnterpriseFormModal: React.FC<EnterpriseFormModalProps> = ({
   onClose,
   title,
   subtitle,
+  maxWidthClass = 'max-w-lg',
   children,
 }) => {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 bg-[#0B1F3A]/50 backdrop-blur-[2px] flex items-center justify-center p-4">
-      <div className="bg-white rounded-xl max-w-lg w-full border border-slate-200 shadow-2xl overflow-hidden">
-        <div className="px-5 py-4 bg-[#0B1F3A] text-white flex items-center justify-between border-b border-[#D4AF37]/30">
+    <div
+      className="fixed inset-0 z-50 bg-[#0B1F3A]/50 backdrop-blur-[2px] flex items-center justify-center p-4"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div
+        className={`bg-white rounded-xl ${maxWidthClass} w-full max-h-[90vh] flex flex-col border border-slate-200 shadow-2xl overflow-hidden`}
+      >
+        <div className="px-5 py-4 bg-[#0B1F3A] text-white flex items-center justify-between border-b border-[#D4AF37]/30 shrink-0">
           <div>
             <h3 className="text-sm font-bold tracking-tight">{title}</h3>
             {subtitle && <p className="text-[11px] text-slate-300 mt-0.5">{subtitle}</p>}
@@ -377,7 +465,83 @@ export const EnterpriseFormModal: React.FC<EnterpriseFormModalProps> = ({
             <X className="w-4 h-4" />
           </button>
         </div>
-        <div className="p-5">{children}</div>
+        <div className="p-5 overflow-y-auto">{children}</div>
+      </div>
+    </div>
+  );
+};
+
+interface EnterpriseConfirmDialogProps {
+  isOpen: boolean;
+  title: string;
+  message: string;
+  confirmLabel?: string;
+  cancelLabel?: string;
+  tone?: 'danger' | 'warning' | 'navy';
+  onConfirm: () => void;
+  onCancel: () => void;
+}
+
+export const EnterpriseConfirmDialog: React.FC<EnterpriseConfirmDialogProps> = ({
+  isOpen,
+  title,
+  message,
+  confirmLabel = 'Confirm',
+  cancelLabel = 'Cancel',
+  tone = 'danger',
+  onConfirm,
+  onCancel,
+}) => {
+  if (!isOpen) return null;
+
+  const confirmStyle =
+    tone === 'danger'
+      ? 'bg-rose-600 hover:bg-rose-700 text-white'
+      : tone === 'warning'
+      ? 'bg-amber-600 hover:bg-amber-700 text-white'
+      : 'bg-[#0B1F3A] hover:bg-[#132E54] text-white';
+
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-[#0B1F3A]/55 backdrop-blur-[2px] flex items-center justify-center p-4"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onCancel();
+      }}
+    >
+      <div className="bg-white rounded-xl max-w-md w-full border border-slate-200 shadow-2xl overflow-hidden">
+        <div className="p-5 flex items-start gap-3.5">
+          <div
+            className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${
+              tone === 'danger'
+                ? 'bg-rose-50 text-rose-600 border border-rose-200'
+                : tone === 'warning'
+                ? 'bg-amber-50 text-amber-600 border border-amber-200'
+                : 'bg-[#0B1F3A]/10 text-[#0B1F3A] border border-[#0B1F3A]/20'
+            }`}
+          >
+            <AlertTriangle className="w-5 h-5" />
+          </div>
+          <div className="min-w-0">
+            <h3 className="text-sm font-bold text-[#0B1F3A]">{title}</h3>
+            <p className="text-xs text-slate-600 mt-1 leading-relaxed">{message}</p>
+          </div>
+        </div>
+        <div className="px-5 py-3 bg-[#F8FAFC] border-t border-slate-200/80 flex items-center justify-end gap-2">
+          <button
+            type="button"
+            onClick={onCancel}
+            className="px-3.5 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-200/70 rounded-lg transition-colors cursor-pointer"
+          >
+            {cancelLabel}
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            className={`px-4 py-2 text-xs font-semibold rounded-lg transition-colors cursor-pointer ${confirmStyle}`}
+          >
+            {confirmLabel}
+          </button>
+        </div>
       </div>
     </div>
   );

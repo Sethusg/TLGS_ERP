@@ -57,6 +57,7 @@ import { ProductModal } from '../pos/components/ProductModal';
 import { CustomerModal } from '../pos/components/CustomerModal';
 import { NotificationPanel } from '../pos/components/NotificationPanel';
 import { StockAlert, StockAlertToasts } from '../pos/components/StockAlertToasts';
+import { applyBulkInventoryImport, BulkImportPayload } from '../pos/utils/inventoryImport';
 
 interface CanteenModuleProps {
   subItem?: string;
@@ -225,6 +226,24 @@ export const CanteenModule: React.FC<CanteenModuleProps> = ({ subItem = 'canteen
     const updated = products.filter((p) => p.id !== productId);
     setProducts(updated);
     saveStoredProducts(updated);
+  };
+
+  const handleBulkImportProducts = (payload: BulkImportPayload) => {
+    const result = applyBulkInventoryImport({
+      payload,
+      existingProducts: products,
+      existingCategories: categories,
+      existingMovements: movements,
+      cashierUsername: currentUser?.username || 'Canteen Manager',
+    });
+    setProducts(result.products);
+    saveStoredProducts(result.products);
+    if (result.newCategoriesCount > 0) {
+      setCategories(result.categories);
+      saveStoredCategories(result.categories);
+    }
+    setMovements(result.movements);
+    saveStoredMovements(result.movements);
   };
 
   const handleSaveCustomer = (customerData: Partial<Customer>) => {
@@ -455,6 +474,7 @@ export const CanteenModule: React.FC<CanteenModuleProps> = ({ subItem = 'canteen
             setCategories(updated);
             saveStoredCategories(updated);
           }}
+          onBulkImportProducts={handleBulkImportProducts}
         />
       )}
 

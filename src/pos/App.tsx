@@ -72,6 +72,7 @@ import { StockAlertToasts, StockAlert } from './components/StockAlertToasts';
 import { Lock, ArrowRight, X, ShieldAlert } from 'lucide-react';
 import { formatCurrency, formatDateTime } from './utils/formatters';
 import { executeThermalPrint } from './utils/thermalPrinter';
+import { applyBulkInventoryImport, BulkImportPayload } from './utils/inventoryImport';
 import {
   InternationalThemeId,
   INTERNATIONAL_THEMES,
@@ -608,6 +609,24 @@ export default function App() {
     }
   };
 
+  const handleBulkImportProducts = (payload: BulkImportPayload) => {
+    const result = applyBulkInventoryImport({
+      payload,
+      existingProducts: products,
+      existingCategories: categories,
+      existingMovements: movements,
+      cashierUsername: currentUser?.username || 'Manager (GSR Admin)',
+    });
+    setProducts(result.products);
+    saveStoredProducts(result.products);
+    if (result.newCategoriesCount > 0) {
+      setCategories(result.categories);
+      saveStoredCategories(result.categories);
+    }
+    setMovements(result.movements);
+    saveStoredMovements(result.movements);
+  };
+
   const handleSaveProduct = (productData: Partial<Product>) => {
     if (productModalState.product) {
       const updated = products.map((p) =>
@@ -1052,6 +1071,7 @@ export default function App() {
             onAddCategory={handleAddCategory}
             onUpdateCategory={handleUpdateCategory}
             onDeleteCategory={handleDeleteCategory}
+            onBulkImportProducts={handleBulkImportProducts}
           />
         )}
 

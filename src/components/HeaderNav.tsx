@@ -17,24 +17,45 @@ import {
   Compass,
   X,
   Plus,
+  Lock,
+  ShieldCheck,
+  Database,
 } from 'lucide-react';
-import { NavSection, Student, Staff } from '../types';
 import {
-  SCHOOL_OPTIONS,
-  ACADEMIC_YEAR_OPTIONS,
-} from '../data/schoolContext';
+  ErpRole,
+  ManagedMainMenu,
+  MenuVisibilityMap,
+  NavSection,
+  RolePermissionMatrix,
+  Staff,
+  Student,
+} from '../types';
 import {
   MAIN_ERP_MENUS,
   PROFILE_MENU_ITEMS,
   getMenusForRole,
+  getVisibleSidebarMenus,
   getSectionDisplayTitle,
 } from '../config/navigation';
+import {
+  ALL_ERP_ROLES,
+  DEFAULT_ROLE_PERMISSIONS,
+  canSwitchCampus,
+  canSwitchSchool,
+  getRoleDefinition,
+  normalizeLegacyRole,
+} from '../config/rbac';
+import { useSchoolContext } from '../contexts/SchoolContext';
 
 interface HeaderNavProps {
   currentSection: NavSection;
   onSelectSection: (section: NavSection, subItem?: string) => void;
   onLogout: () => void;
   userRole?: string;
+  onSwitchRole?: (role: ErpRole) => void;
+  managedMenus?: ManagedMainMenu[];
+  permissionMatrix?: RolePermissionMatrix;
+  menuVisibility?: MenuVisibilityMap;
   selectedSchoolId: string;
   onSchoolChange: (schoolId: string) => void;
   selectedCampusId: string;
@@ -60,7 +81,11 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
   currentSection,
   onSelectSection,
   onLogout,
-  userRole = 'admin',
+  userRole = 'Super Administrator',
+  onSwitchRole,
+  managedMenus,
+  permissionMatrix = DEFAULT_ROLE_PERMISSIONS,
+  menuVisibility = {},
   selectedSchoolId,
   onSchoolChange,
   selectedCampusId,
@@ -81,15 +106,27 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
   onOpenMobileSidebar,
   onOpenAppearanceModal,
 }) => {
+  const { schools, academicYears, lockedSchoolId, lockedCampusId } =
+    useSchoolContext();
+
   const [profileOpen, setProfileOpen] = useState(false);
   const [searchFocused, setSearchFocused] = useState(false);
   const searchContainerRef = useRef<HTMLDivElement>(null);
   const profileContainerRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
+  const normalizedRole = normalizeLegacyRole(userRole);
+  const roleDef = getRoleDefinition(normalizedRole);
+  const allowSchoolSwitch = canSwitchSchool(normalizedRole) && !lockedSchoolId;
+  const allowCampusSwitch =
+    canSwitchCampus(normalizedRole) && !lockedCampusId && selectedSchoolId !== 'all';
+
   const activeSchool = useMemo(
-    () => SCHOOL_OPTIONS.find((s) => s.id === selectedSchoolId) || SCHOOL_OPTIONS[0],
-    [selectedSchoolId]
+    () =>
+      selectedSchoolId === 'all'
+        ? null
+        : schools.find((s) => s.id === selectedSchoolId) || schools[0],
+    [selectedSchoolId, schools]
   );
 
   // Close popovers on outside click
@@ -129,13 +166,26 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
     return () => window.removeEventListener('keydown', onKeyDown);
   }, []);
 
-  // Global Search Results across Modules, Students, and Staff
   const searchResults = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     if (!q) return { modules: [], students: [], staff: [] };
 
-    const allowedMenus = getMenusForRole(userRole);
-    const modules: { label: string; subLabel: string; section: NavSection; subItem?: string }[] = [];
+    const allowedMenus =
+      managedMenus && managedMenus.length > 0
+        ? getVisibleSidebarMenus(
+            managedMenus,
+            normalizedRole,
+            permissionMatrix,
+            selectedSchoolId,
+            selectedCampusId
+          )
+        : getMenusForRole(normalizedRole, permissionMatrix, menuVisibility);
+    const modules: {
+      label: string;
+      subLabel: string;
+      section: NavSection;
+      subItem?: string;
+    }[] = [];
     allowedMenus.forEach((menu) => {
       if (
         menu.label.toLowerCase().includes(q) ||
@@ -181,31 +231,26 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
       .slice(0, 4);
 
     return {
-      modules: modules.slice(0, 5),
+      modules: modules.slice(0, 6),
       students: matchedStudents,
       staff: matchedStaff,
     };
-  }, [searchQuery, students, staffList, userRole]);
+  }, [
+    searchQuery,
+    students,
+    staffList,
+    normalizedRole,
+    managedMenus,
+    permissionMatrix,
+    menuVisibility,
+    selectedSchoolId,
+    selectedCampusId,
+  ]);
 
   const hasSearchResults =
     searchResults.modules.length > 0 ||
     searchResults.students.length > 0 ||
     searchResults.staff.length > 0;
-
-  const roleProfile = useMemo(() => {
-    switch (userRole) {
-      case 'cashier':
-        return { name: 'Raj Kumar', title: 'POS Cashier', initials: 'RK' };
-      case 'accountant':
-        return { name: 'Anita Subramanian', title: 'Chief Accountant', initials: 'AS' };
-      case 'teacher':
-        return { name: 'Malini Sundaram', title: 'Senior Faculty', initials: 'MS' };
-      case 'manager':
-        return { name: 'Vikram Rao', title: 'Operations Manager', initials: 'VR' };
-      default:
-        return { name: 'Dr. Sethu Ramanathan', title: 'Group Super Admin', initials: 'SR' };
-    }
-  }, [userRole]);
 
   const activeSectionTitle = getSectionDisplayTitle(currentSection);
 
@@ -214,9 +259,8 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
       id="header-nav"
       className="sticky top-0 z-30 bg-white border-b border-slate-200/90 no-print"
     >
-      {/* Primary Top Bar Row */}
       <div className="h-16 px-3 sm:px-5 flex items-center justify-between gap-2 sm:gap-4">
-        {/* Left: Mobile Menu + Institutional Selectors */}
+        {/* Left: Mobile Menu + Multi-School Context Selectors */}
         <div className="flex items-center gap-2 sm:gap-3 min-w-0">
           <button
             type="button"
@@ -230,15 +274,23 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
           {/* Desktop Institutional Context Selectors */}
           <div className="hidden xl:flex items-center gap-2">
             {/* School Selector */}
-            <div className="relative flex items-center">
-              <Building2 className="w-3.5 h-3.5 text-[#9A7418] absolute left-2.5 pointer-events-none" />
+            <div className="relative flex items-center" title={allowSchoolSwitch ? 'Switch School Tenant' : `School-level isolation locked for ${normalizedRole}`}>
+              {allowSchoolSwitch ? (
+                <Building2 className="w-3.5 h-3.5 text-[#9A7418] absolute left-2.5 pointer-events-none" />
+              ) : (
+                <Lock className="w-3.5 h-3.5 text-[#9A7418] absolute left-2.5 pointer-events-none" />
+              )}
               <select
                 aria-label="Select School"
+                disabled={!allowSchoolSwitch}
                 value={selectedSchoolId}
                 onChange={(e) => onSchoolChange(e.target.value)}
-                className="pl-8 pr-7 py-1.5 text-xs font-semibold text-[#0B1F3A] bg-[#F8FAFC] hover:bg-slate-100/80 border border-slate-200 rounded-lg focus:outline-none focus:border-[#0B1F3A] focus:bg-white transition-colors appearance-none cursor-pointer max-w-[205px] truncate"
+                className="pl-8 pr-7 py-1.5 text-xs font-semibold text-[#0B1F3A] bg-[#F8FAFC] hover:bg-slate-100/80 disabled:opacity-80 disabled:cursor-not-allowed border border-slate-200 rounded-lg focus:outline-none focus:border-[#0B1F3A] focus:bg-white transition-colors appearance-none cursor-pointer max-w-[205px] truncate"
               >
-                {SCHOOL_OPTIONS.map((school) => (
+                {allowSchoolSwitch && (
+                  <option value="all">All Schools ({schools.length})</option>
+                )}
+                {schools.map((school) => (
                   <option key={school.id} value={school.id}>
                     {school.shortName}
                   </option>
@@ -248,20 +300,37 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
             </div>
 
             {/* Campus Selector */}
-            <div className="relative flex items-center">
-              <MapPin className="w-3.5 h-3.5 text-[#9A7418] absolute left-2.5 pointer-events-none" />
+            <div className="relative flex items-center" title={allowCampusSwitch ? 'Switch Campus' : lockedCampusId ? `Campus-level restriction locked for ${normalizedRole}` : 'Select a specific school to filter by campus'}>
+              {lockedCampusId ? (
+                <Lock className="w-3.5 h-3.5 text-[#9A7418] absolute left-2.5 pointer-events-none" />
+              ) : (
+                <MapPin className="w-3.5 h-3.5 text-[#9A7418] absolute left-2.5 pointer-events-none" />
+              )}
               <select
                 aria-label="Select Campus"
+                disabled={!allowCampusSwitch}
                 value={selectedCampusId}
                 onChange={(e) => onCampusChange(e.target.value)}
-                className="pl-8 pr-7 py-1.5 text-xs font-medium text-slate-700 bg-[#F8FAFC] hover:bg-slate-100/80 border border-slate-200 rounded-lg focus:outline-none focus:border-[#0B1F3A] focus:bg-white transition-colors appearance-none cursor-pointer max-w-[190px] truncate"
+                className="pl-8 pr-7 py-1.5 text-xs font-medium text-slate-700 bg-[#F8FAFC] hover:bg-slate-100/80 disabled:opacity-75 disabled:cursor-not-allowed border border-slate-200 rounded-lg focus:outline-none focus:border-[#0B1F3A] focus:bg-white transition-colors appearance-none cursor-pointer max-w-[190px] truncate"
               >
-                <option value="all">All Campuses ({activeSchool.campuses.length})</option>
-                {activeSchool.campuses.map((campus) => (
-                  <option key={campus.id} value={campus.id}>
-                    {campus.name}
+                {activeSchool ? (
+                  <>
+                    {!lockedCampusId && (
+                      <option value="all">
+                        All Campuses ({activeSchool.campuses.length})
+                      </option>
+                    )}
+                    {activeSchool.campuses.map((campus) => (
+                      <option key={campus.id} value={campus.id}>
+                        {campus.name}
+                      </option>
+                    ))}
+                  </>
+                ) : (
+                  <option value="all">
+                    All Campuses ({schools.reduce((a, s) => a + s.campuses.length, 0)})
                   </option>
-                ))}
+                )}
               </select>
               <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2 pointer-events-none" />
             </div>
@@ -275,7 +344,7 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
                 onChange={(e) => onAcademicYearChange(e.target.value)}
                 className="pl-8 pr-7 py-1.5 text-xs font-semibold text-[#0B1F3A] bg-[#F8FAFC] hover:bg-slate-100/80 border border-slate-200 rounded-lg focus:outline-none focus:border-[#0B1F3A] focus:bg-white transition-colors appearance-none cursor-pointer tabular-nums"
               >
-                {ACADEMIC_YEAR_OPTIONS.map((yr) => (
+                {academicYears.map((yr) => (
                   <option key={yr.id} value={yr.id}>
                     {yr.label}
                   </option>
@@ -285,20 +354,18 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
             </div>
           </div>
 
-          {/* Compact Section Title on < xl screens */}
           <div className="xl:hidden min-w-0">
             <p className="text-xs sm:text-sm font-bold text-[#0B1F3A] truncate">
               {activeSectionTitle}
             </p>
             <p className="text-[10.5px] text-slate-500 truncate">
-              {activeSchool.shortName}
+              {activeSchool ? activeSchool.shortName : `All Schools (${schools.length})`}
             </p>
           </div>
         </div>
 
-        {/* Center/Right: Global Search + Action Icons + Profile */}
+        {/* Right: Search, Utilities & Profile */}
         <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-          {/* Global Search Input + Live Results Popover */}
           <div ref={searchContainerRef} className="relative hidden md:block w-52 lg:w-64">
             <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
             <input
@@ -329,7 +396,6 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
               </span>
             )}
 
-            {/* Instant Search Results Dropdown */}
             {searchFocused && searchQuery.trim().length > 0 && (
               <div className="absolute right-0 mt-1.5 w-80 sm:w-96 bg-white rounded-xl border border-slate-200 shadow-2xl overflow-hidden z-50">
                 {!hasSearchResults ? (
@@ -341,7 +407,7 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
                     {searchResults.modules.length > 0 && (
                       <div className="p-2">
                         <div className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                          ERP Modules & Pages
+                          ERP Modules &amp; Pages
                         </div>
                         {searchResults.modules.map((mod, idx) => (
                           <button
@@ -371,7 +437,7 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
                     {searchResults.students.length > 0 && (
                       <div className="p-2">
                         <div className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                          Students
+                          Students (Tenant Isolated)
                         </div>
                         {searchResults.students.map((std) => (
                           <button
@@ -441,7 +507,6 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
             )}
           </div>
 
-          {/* Utility Icon Buttons */}
           <button
             type="button"
             onClick={onOpenQRScanner}
@@ -472,7 +537,6 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
             <RotateCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin text-[#9A7418]' : ''}`} />
           </button>
 
-          {/* Notification Bell */}
           <button
             type="button"
             onClick={onOpenNotifications}
@@ -488,7 +552,6 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
             )}
           </button>
 
-          {/* Quick Action Primary CTA */}
           <button
             type="button"
             onClick={onOpenQuickAction}
@@ -498,10 +561,9 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
             <span>Quick Action</span>
           </button>
 
-          {/* Divider */}
           <div className="h-6 w-px bg-slate-200 mx-0.5 hidden sm:block" />
 
-          {/* User Profile Menu */}
+          {/* User Profile & Instant 19-Role Switcher */}
           <div ref={profileContainerRef} className="relative">
             <button
               type="button"
@@ -510,28 +572,53 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
               aria-label="Open user profile menu"
             >
               <div className="w-8 h-8 rounded-lg bg-[#0B1F3A] border border-[#D4AF37]/60 text-[#D4AF37] font-bold text-xs flex items-center justify-center shrink-0">
-                {roleProfile.initials}
+                {roleDef.sampleAccount.initials}
               </div>
               <div className="hidden lg:block text-left leading-tight">
-                <p className="text-xs font-bold text-[#0B1F3A] max-w-[125px] truncate">
-                  {roleProfile.name}
+                <p className="text-xs font-bold text-[#0B1F3A] max-w-[135px] truncate">
+                  {roleDef.sampleAccount.fullName}
                 </p>
-                <p className="text-[10px] text-slate-500 max-w-[125px] truncate">
-                  {roleProfile.title}
+                <p className="text-[10px] text-[#9A7418] font-semibold max-w-[135px] truncate">
+                  {roleDef.role}
                 </p>
               </div>
               <ChevronDown className="w-3.5 h-3.5 text-slate-400 hidden lg:block" />
             </button>
 
             {profileOpen && (
-              <div className="absolute right-0 mt-2 w-60 bg-white rounded-xl border border-slate-200 shadow-2xl overflow-hidden z-50">
+              <div className="absolute right-0 mt-2 w-72 bg-white rounded-xl border border-slate-200 shadow-2xl overflow-hidden z-50">
                 <div className="px-4 py-3 bg-[#0B1F3A] text-white border-b border-[#D4AF37]/30">
-                  <p className="text-xs font-bold truncate">{roleProfile.name}</p>
-                  <p className="text-[11px] text-[#D4AF37] truncate">{roleProfile.title}</p>
+                  <p className="text-xs font-bold truncate">{roleDef.sampleAccount.fullName}</p>
+                  <p className="text-[11px] text-[#D4AF37] font-semibold truncate">
+                    {roleDef.role} · {roleDef.scope} Scope
+                  </p>
                   <p className="text-[10px] text-slate-300 mt-1 truncate">
-                    {activeSchool.name}
+                    {activeSchool ? activeSchool.name : `All Schools (${schools.length})`}
                   </p>
                 </div>
+
+                {/* Live Role Switcher for Testing all 19 RBAC Roles */}
+                {onSwitchRole && (
+                  <div className="px-3.5 py-2.5 bg-[#F8FAFC] border-b border-slate-200/80">
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+                      Switch Active Role (19 RBAC Roles)
+                    </label>
+                    <select
+                      value={normalizedRole}
+                      onChange={(e) => {
+                        onSwitchRole(e.target.value as ErpRole);
+                        setProfileOpen(false);
+                      }}
+                      className="w-full px-2.5 py-1.5 text-xs font-semibold text-[#0B1F3A] bg-white border border-slate-300 rounded-lg cursor-pointer"
+                    >
+                      {ALL_ERP_ROLES.map((def) => (
+                        <option key={def.role} value={def.role}>
+                          {def.index}. {def.role} ({def.scope})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
 
                 <div className="py-1.5">
                   {PROFILE_MENU_ITEMS.map((item) => {
@@ -547,15 +634,15 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
                           } else if (item.actionId === 'profile-customize-nav') {
                             onOpenAppearanceModal();
                           } else if (item.actionId === 'profile-org') {
-                            onSelectSection('ORGANIZATION', 'org-trusts');
-                          } else if (item.actionId === 'profile-quick-sms') {
-                            onSelectSection('COMMUNICATIONS', 'comm-broadcast');
+                            onSelectSection('ORGANIZATION', 'org-profile');
+                          } else if (item.actionId === 'profile-rbac') {
+                            onSelectSection('ADMIN', 'admin-permissions');
+                          } else if (item.actionId === 'profile-db-schema') {
+                            onSelectSection('ADMIN', 'admin-database-schema');
                           } else if (item.actionId === 'profile-reports') {
                             onSelectSection('REPORTS', 'rep-executive');
-                          } else if (item.actionId === 'profile-settings') {
-                            onSelectSection('SETTINGS', 'settings-general');
                           } else {
-                            onSelectSection('SETTINGS', 'admin-audit');
+                            onSelectSection('ADMIN', 'admin-login-history');
                           }
                         }}
                         className={`w-full text-left px-4 py-2 text-xs flex items-center gap-2 transition-colors cursor-pointer ${
@@ -566,6 +653,12 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
                       >
                         {item.actionId === 'profile-customize-nav' && (
                           <Palette className="w-3.5 h-3.5 text-[#9A7418]" />
+                        )}
+                        {item.actionId === 'profile-rbac' && (
+                          <ShieldCheck className="w-3.5 h-3.5 text-[#9A7418]" />
+                        )}
+                        {item.actionId === 'profile-db-schema' && (
+                          <Database className="w-3.5 h-3.5 text-[#9A7418]" />
                         )}
                         {isLogout && <LogOut className="w-3.5 h-3.5 text-rose-600" />}
                         <span>{item.label}</span>
@@ -579,17 +672,21 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
         </div>
       </div>
 
-      {/* Responsive Institutional Context Strip (< xl screens) so School, Campus, Year & Search remain effortless on tablets and phones */}
+      {/* Responsive Mobile/Tablet Context Strip */}
       <div className="xl:hidden px-3 sm:px-5 py-2 bg-[#F8FAFC] border-t border-slate-200/80 flex flex-wrap items-center gap-2">
         <div className="relative flex-1 min-w-[140px]">
           <Building2 className="w-3.5 h-3.5 text-[#9A7418] absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
           <select
             aria-label="Select School Mobile"
+            disabled={!allowSchoolSwitch}
             value={selectedSchoolId}
             onChange={(e) => onSchoolChange(e.target.value)}
-            className="w-full pl-8 pr-6 py-1.5 text-[11.5px] font-semibold text-[#0B1F3A] bg-white border border-slate-200 rounded-lg appearance-none cursor-pointer truncate"
+            className="w-full pl-8 pr-6 py-1.5 text-[11.5px] font-semibold text-[#0B1F3A] bg-white border border-slate-200 rounded-lg appearance-none cursor-pointer truncate disabled:opacity-75"
           >
-            {SCHOOL_OPTIONS.map((school) => (
+            {allowSchoolSwitch && (
+              <option value="all">All Schools ({schools.length})</option>
+            )}
+            {schools.map((school) => (
               <option key={school.id} value={school.id}>
                 {school.shortName}
               </option>
@@ -602,16 +699,25 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
           <MapPin className="w-3.5 h-3.5 text-[#9A7418] absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
           <select
             aria-label="Select Campus Mobile"
+            disabled={!allowCampusSwitch}
             value={selectedCampusId}
             onChange={(e) => onCampusChange(e.target.value)}
-            className="w-full pl-8 pr-6 py-1.5 text-[11.5px] font-medium text-slate-700 bg-white border border-slate-200 rounded-lg appearance-none cursor-pointer truncate"
+            className="w-full pl-8 pr-6 py-1.5 text-[11.5px] font-medium text-slate-700 bg-white border border-slate-200 rounded-lg appearance-none cursor-pointer truncate disabled:opacity-75"
           >
-            <option value="all">All Campuses ({activeSchool.campuses.length})</option>
-            {activeSchool.campuses.map((campus) => (
-              <option key={campus.id} value={campus.id}>
-                {campus.name}
-              </option>
-            ))}
+            {activeSchool ? (
+              <>
+                {!lockedCampusId && (
+                  <option value="all">All Campuses ({activeSchool.campuses.length})</option>
+                )}
+                {activeSchool.campuses.map((campus) => (
+                  <option key={campus.id} value={campus.id}>
+                    {campus.name}
+                  </option>
+                ))}
+              </>
+            ) : (
+              <option value="all">All Campuses</option>
+            )}
           </select>
           <ChevronDown className="w-3 h-3 text-slate-400 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
         </div>
@@ -624,7 +730,7 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
             onChange={(e) => onAcademicYearChange(e.target.value)}
             className="w-full pl-8 pr-6 py-1.5 text-[11.5px] font-semibold text-[#0B1F3A] bg-white border border-slate-200 rounded-lg appearance-none cursor-pointer tabular-nums"
           >
-            {ACADEMIC_YEAR_OPTIONS.map((yr) => (
+            {academicYears.map((yr) => (
               <option key={yr.id} value={yr.id}>
                 {yr.label}
               </option>
@@ -632,151 +738,9 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
           </select>
           <ChevronDown className="w-3 h-3 text-slate-400 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
         </div>
-
-        {/* Mobile Search Bar with Live Dropdown Results */}
-        <div className="relative md:hidden w-full">
-          <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-          <input
-            type="text"
-            value={searchQuery}
-            onFocus={() => setSearchFocused(true)}
-            onChange={(e) => {
-              onSearchChange(e.target.value);
-              setSearchFocused(true);
-            }}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && searchResults.modules[0]) {
-                onSelectSection(
-                  searchResults.modules[0].section,
-                  searchResults.modules[0].subItem
-                );
-                onSearchChange('');
-                setSearchFocused(false);
-              }
-            }}
-            placeholder="Search ERP modules, students, staff..."
-            aria-label="Mobile Global ERP Search"
-            className="w-full pl-8 pr-8 py-1.5 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-[#0B1F3A]"
-          />
-          {searchQuery && (
-            <button
-              type="button"
-              onClick={() => onSearchChange('')}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 cursor-pointer"
-              aria-label="Clear mobile search"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          )}
-
-          {searchFocused && searchQuery.trim().length > 0 && (
-            <div className="absolute left-0 right-0 mt-1.5 bg-white rounded-xl border border-slate-200 shadow-2xl overflow-hidden z-50">
-              {!hasSearchResults ? (
-                <div className="px-4 py-5 text-center text-xs text-slate-500">
-                  No matching results for &ldquo;{searchQuery}&rdquo;.
-                </div>
-              ) : (
-                <div className="max-h-72 overflow-y-auto divide-y divide-slate-100">
-                  {searchResults.modules.length > 0 && (
-                    <div className="p-2">
-                      <div className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                        Modules
-                      </div>
-                      {searchResults.modules.map((mod, idx) => (
-                        <button
-                          key={`m-${mod.section}-${mod.subItem}-${idx}`}
-                          type="button"
-                          onClick={() => {
-                            onSelectSection(mod.section, mod.subItem);
-                            setSearchFocused(false);
-                            onSearchChange('');
-                          }}
-                          className="w-full text-left px-2 py-1.5 rounded-lg hover:bg-[#F8FAFC] flex items-center gap-2 cursor-pointer"
-                        >
-                          <Compass className="w-3.5 h-3.5 text-[#9A7418] shrink-0" />
-                          <div className="min-w-0">
-                            <p className="text-xs font-semibold text-[#0B1F3A] truncate">
-                              {mod.label}
-                            </p>
-                            <p className="text-[10.5px] text-slate-500 truncate">
-                              {mod.subLabel}
-                            </p>
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-
-                  {searchResults.students.length > 0 && (
-                    <div className="p-2">
-                      <div className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                        Students
-                      </div>
-                      {searchResults.students.map((std) => (
-                        <button
-                          key={`ms-${std.id}`}
-                          type="button"
-                          onClick={() => {
-                            onSelectStudent(std);
-                            setSearchFocused(false);
-                          }}
-                          className="w-full text-left px-2 py-1.5 rounded-lg hover:bg-[#F8FAFC] flex items-center justify-between gap-2 cursor-pointer"
-                        >
-                          <div className="min-w-0">
-                            <p className="text-xs font-semibold text-[#0B1F3A] truncate">
-                              {std.name}
-                            </p>
-                            <p className="text-[10.5px] text-slate-500 truncate">
-                              {std.grade} · {std.admissionNo}
-                            </p>
-                          </div>
-                          <span className="text-[10px] font-mono text-slate-400 shrink-0">
-                            View
-                          </span>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-
-                  {searchResults.staff.length > 0 && (
-                    <div className="p-2">
-                      <div className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                        Staff
-                      </div>
-                      {searchResults.staff.map((st) => (
-                        <button
-                          key={`mst-${st.id}`}
-                          type="button"
-                          onClick={() => {
-                            onSelectSection('STAFFS', 'staff-info');
-                            setSearchFocused(false);
-                          }}
-                          className="w-full text-left px-2 py-1.5 rounded-lg hover:bg-[#F8FAFC] flex items-center justify-between gap-2 cursor-pointer"
-                        >
-                          <div className="min-w-0">
-                            <p className="text-xs font-semibold text-[#0B1F3A] truncate">
-                              {st.name}
-                            </p>
-                            <p className="text-[10.5px] text-slate-500 truncate">
-                              {st.designation}
-                            </p>
-                          </div>
-                          <span className="text-[10px] font-mono text-slate-400 shrink-0">
-                            {st.empId}
-                          </span>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
       </div>
     </header>
   );
 };
 
-// Re-export MENU_ITEMS alias for backwards compatibility if referenced elsewhere
 export const MENU_ITEMS = MAIN_ERP_MENUS;

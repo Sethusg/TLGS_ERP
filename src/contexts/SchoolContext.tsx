@@ -1,23 +1,38 @@
-import React, { createContext, useContext, useState, useMemo } from 'react';
+import React, { createContext, useContext, useState, useMemo, useCallback } from 'react';
+import { EducationBoard } from '../types';
 import {
   SCHOOL_OPTIONS,
   ACADEMIC_YEAR_OPTIONS,
+  INITIAL_EDUCATION_BOARDS,
   SchoolOption,
+  CampusOption,
+  AcademicYearOption,
   InstitutionalMetrics,
   getInstitutionalMetrics,
 } from '../data/schoolContext';
 
 interface SchoolContextValue {
+  schools: SchoolOption[];
+  academicYears: AcademicYearOption[];
+  educationBoards: EducationBoard[];
   selectedSchoolId: string;
   selectedCampusId: string;
   selectedAcademicYearId: string;
-  activeSchool: SchoolOption;
+  /** Optional tenant locks enforced by RBAC for school- or campus-scoped roles */
+  lockedSchoolId: string | null;
+  lockedCampusId: string | null;
+  activeSchool: SchoolOption | null;
   metrics: InstitutionalMetrics;
   contextLabel: string;
   setSchool: (schoolId: string) => void;
   setCampus: (campusId: string) => void;
   setAcademicYear: (yearId: string) => void;
   setSchoolAndCampus: (schoolId: string, campusId?: string) => void;
+  applyTenantScopeLock: (schoolId: string | null, campusId: string | null) => void;
+  addSchool: (school: SchoolOption) => void;
+  addCampusToSchool: (schoolId: string, campus: CampusOption) => void;
+  addAcademicYear: (year: AcademicYearOption) => void;
+  addEducationBoard: (board: EducationBoard) => void;
 }
 
 const SchoolContext = createContext<SchoolContextValue | null>(null);
@@ -25,40 +40,110 @@ const SchoolContext = createContext<SchoolContextValue | null>(null);
 export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
-  const [selectedSchoolId, setSelectedSchoolId] = useState<string>(
-    SCHOOL_OPTIONS[0].id
+  const [schools, setSchools] = useState<SchoolOption[]>(SCHOOL_OPTIONS);
+  const [academicYears, setAcademicYears] = useState<AcademicYearOption[]>(
+    ACADEMIC_YEAR_OPTIONS
   );
-  const [selectedCampusId, setSelectedCampusId] = useState<string>(
-    SCHOOL_OPTIONS[0].campuses[0].id
+  const [educationBoards, setEducationBoards] = useState<EducationBoard[]>(
+    INITIAL_EDUCATION_BOARDS
   );
+
+  // Default to Platform View ('all') for Super Administrator
+  const [selectedSchoolId, setSelectedSchoolId] = useState<string>('all');
+  const [selectedCampusId, setSelectedCampusId] = useState<string>('all');
   const [selectedAcademicYearId, setSelectedAcademicYearId] = useState<string>(
     ACADEMIC_YEAR_OPTIONS[0].id
   );
 
-  const setSchool = (schoolId: string) => {
-    setSelectedSchoolId(schoolId);
-    const matched = SCHOOL_OPTIONS.find((s) => s.id === schoolId);
-    if (matched && matched.campuses.length > 0) {
-      setSelectedCampusId(matched.campuses[0].id);
-    } else {
-      setSelectedCampusId('all');
-    }
-  };
+  const [lockedSchoolId, setLockedSchoolId] = useState<string | null>(null);
+  const [lockedCampusId, setLockedCampusId] = useState<string | null>(null);
 
-  const setSchoolAndCampus = (schoolId: string, campusId?: string) => {
-    setSelectedSchoolId(schoolId);
-    if (campusId) {
+  const setSchool = useCallback(
+    (schoolId: string) => {
+      if (lockedSchoolId && schoolId !== lockedSchoolId) return;
+      setSelectedSchoolId(schoolId);
+      if (schoolId === 'all') {
+        setSelectedCampusId('all');
+        return;
+      }
+      if (lockedCampusId) {
+        setSelectedCampusId(lockedCampusId);
+        return;
+      }
+      setSelectedCampusId('all');
+    },
+    [lockedSchoolId, lockedCampusId]
+  );
+
+  const setCampus = useCallback(
+    (campusId: string) => {
+      if (lockedCampusId && campusId !== lockedCampusId) return;
       setSelectedCampusId(campusId);
-    } else {
-      const matched = SCHOOL_OPTIONS.find((s) => s.id === schoolId);
-      setSelectedCampusId(matched?.campuses[0]?.id || 'all');
-    }
-  };
+    },
+    [lockedCampusId]
+  );
+
+  const setSchoolAndCampus = useCallback(
+    (schoolId: string, campusId?: string) => {
+      if (lockedSchoolId && schoolId !== lockedSchoolId) return;
+      setSelectedSchoolId(schoolId);
+      if (lockedCampusId) {
+        setSelectedCampusId(lockedCampusId);
+      } else if (campusId) {
+        setSelectedCampusId(campusId);
+      } else {
+        setSelectedCampusId('all');
+      }
+    },
+    [lockedSchoolId, lockedCampusId]
+  );
+
+  const applyTenantScopeLock = useCallback(
+    (schoolLock: string | null, campusLock: string | null) => {
+      setLockedSchoolId(schoolLock);
+      setLockedCampusId(campusLock);
+      if (schoolLock) {
+        setSelectedSchoolId(schoolLock);
+        setSelectedCampusId(campusLock || 'all');
+      } else {
+        setSelectedSchoolId('all');
+        setSelectedCampusId('all');
+      }
+    },
+    []
+  );
+
+  const addSchool = useCallback((school: SchoolOption) => {
+    setSchools((prev) => [...prev, school]);
+  }, []);
+
+  const addCampusToSchool = useCallback(
+    (schoolId: string, campus: CampusOption) => {
+      setSchools((prev) =>
+        prev.map((sch) =>
+          sch.id === schoolId
+            ? { ...sch, campuses: [...sch.campuses, campus] }
+            : sch
+        )
+      );
+    },
+    []
+  );
+
+  const addAcademicYear = useCallback((year: AcademicYearOption) => {
+    setAcademicYears((prev) => [year, ...prev]);
+  }, []);
+
+  const addEducationBoard = useCallback((board: EducationBoard) => {
+    setEducationBoards((prev) => [...prev, board]);
+  }, []);
 
   const activeSchool = useMemo(
     () =>
-      SCHOOL_OPTIONS.find((s) => s.id === selectedSchoolId) || SCHOOL_OPTIONS[0],
-    [selectedSchoolId]
+      selectedSchoolId === 'all'
+        ? null
+        : schools.find((s) => s.id === selectedSchoolId) || schools[0] || null,
+    [selectedSchoolId, schools]
   );
 
   const metrics = useMemo(
@@ -66,24 +151,36 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({
       getInstitutionalMetrics(
         selectedSchoolId,
         selectedCampusId,
-        selectedAcademicYearId
+        selectedAcademicYearId,
+        schools,
+        academicYears
       ),
-    [selectedSchoolId, selectedCampusId, selectedAcademicYearId]
+    [selectedSchoolId, selectedCampusId, selectedAcademicYearId, schools, academicYears]
   );
 
   const contextLabel = `${metrics.schoolName} · ${metrics.campusLabel} · ${metrics.academicYearLabel}`;
 
   const value: SchoolContextValue = {
+    schools,
+    academicYears,
+    educationBoards,
     selectedSchoolId,
     selectedCampusId,
     selectedAcademicYearId,
+    lockedSchoolId,
+    lockedCampusId,
     activeSchool,
     metrics,
     contextLabel,
     setSchool,
-    setCampus: setSelectedCampusId,
+    setCampus,
     setAcademicYear: setSelectedAcademicYearId,
     setSchoolAndCampus,
+    applyTenantScopeLock,
+    addSchool,
+    addCampusToSchool,
+    addAcademicYear,
+    addEducationBoard,
   };
 
   return (

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Users,
   BookOpen,
@@ -14,14 +14,79 @@ import {
   Unlock,
   Shield,
   Search,
-  AlertTriangle,
   X,
   Clock,
-  Check,
+  Sliders,
+  Database,
+  Activity,
+  History,
+  FileText,
+  Bell,
+  Server,
+  Eye,
+  UserCheck,
+  Upload,
+  FileSpreadsheet,
 } from 'lucide-react';
-import { SystemUser, SchoolClass, SchoolSubject, TimetableEntry } from '../types';
+import {
+  AuditLog,
+  CrudPermissionSet,
+  ErpRole,
+  LoginHistoryEntry,
+  ManagedMainMenu,
+  MenuOperationPermissions,
+  MenuVisibilityMap,
+  NavSection,
+  RoleMenuPermissionMap,
+  RolePermissionMatrix,
+  SchoolClass,
+  SchoolSubject,
+  Staff,
+  SystemUser,
+  TimetableEntry,
+} from '../types';
+import { ALL_ERP_ROLES, CORE_MODULE_IDS, getModuleCrud } from '../config/rbac';
+import { MAIN_ERP_MENUS } from '../config/navigation';
+import { useSchoolContext } from '../contexts/SchoolContext';
+import { getCampusNameById, getSchoolNameById } from '../data/schoolContext';
+import { DatabaseArchitecturePanel } from './DatabaseArchitecturePanel';
+import { MenuManagementModule } from './MenuManagementModule';
+import {
+  EnterpriseConfirmDialog,
+  EnterpriseDataTable,
+  EnterpriseFormModal,
+  ModulePageHeader,
+  TableColumn,
+} from './Common/EnterpriseUI';
+import { AdminBulkImportModal } from './Modals/AdminBulkImportModal';
+import {
+  ADMIN_IMPORT_SCHEMAS,
+  AdminBulkEntityType,
+  AdminBulkParseResult,
+  downloadAdminSampleTemplate,
+} from '../utils/adminBulkImport';
+
+type AdminTab =
+  | 'users'
+  | 'roles'
+  | 'permissions'
+  | 'menus'
+  | 'classes'
+  | 'subjects'
+  | 'timetables'
+  | 'school-settings'
+  | 'academic-settings'
+  | 'notification-settings'
+  | 'api-config'
+  | 'database-schema'
+  | 'audit'
+  | 'login-history'
+  | 'monitoring';
 
 interface AdminManagementHubProps {
+  subItem?: string;
+  currentRole: ErpRole;
+  staffList: Staff[];
   users: SystemUser[];
   onAddUser: (user: Omit<SystemUser, 'id'>) => void;
   onUpdateUser: (user: SystemUser) => void;
@@ -43,9 +108,82 @@ interface AdminManagementHubProps {
   onAddTimetable: (tt: Omit<TimetableEntry, 'id'>) => void;
   onUpdateTimetable: (tt: TimetableEntry) => void;
   onDeleteTimetable: (id: string) => void;
+
+  permissionMatrix: RolePermissionMatrix;
+  onUpdatePermission: (
+    role: ErpRole,
+    moduleId: NavSection,
+    field: keyof CrudPermissionSet,
+    value: boolean
+  ) => void;
+  menuVisibility: MenuVisibilityMap;
+  onToggleMenuVisibility: (moduleId: NavSection) => void;
+  managedMenus: ManagedMainMenu[];
+  onChangeManagedMenus: (
+    updater: (prev: ManagedMainMenu[]) => ManagedMainMenu[],
+    auditRemark: string,
+    referenceId?: string
+  ) => void;
+  menuOperationPermissions: RoleMenuPermissionMap;
+  onUpdateMenuOperationPermission: (
+    role: ErpRole,
+    operation: keyof MenuOperationPermissions,
+    value: boolean
+  ) => void;
+  onSwitchPreviewRole: (role: ErpRole) => void;
+  auditLogs: AuditLog[];
+  loginHistory: LoginHistoryEntry[];
+  onBulkImport?: (
+    entity: AdminBulkEntityType,
+    result: AdminBulkParseResult,
+    updateExisting: boolean
+  ) => { created: number; updated: number };
+  onNavigate?: (section: NavSection, subItem?: string) => void;
+}
+
+function resolveTabFromSubItem(subItem?: string): AdminTab {
+  switch (subItem) {
+    case 'admin-users':
+      return 'users';
+    case 'admin-roles':
+      return 'roles';
+    case 'admin-permissions':
+      return 'permissions';
+    case 'admin-menus':
+      return 'menus';
+    case 'acad-classes':
+    case 'acad-sections':
+    case 'acad-class-teacher':
+      return 'classes';
+    case 'acad-subjects':
+      return 'subjects';
+    case 'acad-timetables':
+      return 'timetables';
+    case 'admin-school-settings':
+      return 'school-settings';
+    case 'admin-academic-settings':
+      return 'academic-settings';
+    case 'admin-notification-settings':
+      return 'notification-settings';
+    case 'admin-api-config':
+      return 'api-config';
+    case 'admin-database-schema':
+      return 'database-schema';
+    case 'admin-audit':
+      return 'audit';
+    case 'admin-login-history':
+      return 'login-history';
+    case 'admin-monitoring':
+      return 'monitoring';
+    default:
+      return 'users';
+  }
 }
 
 export const AdminManagementHub: React.FC<AdminManagementHubProps> = ({
+  subItem,
+  currentRole,
+  staffList,
   users,
   onAddUser,
   onUpdateUser,
@@ -64,10 +202,38 @@ export const AdminManagementHub: React.FC<AdminManagementHubProps> = ({
   onAddTimetable,
   onUpdateTimetable,
   onDeleteTimetable,
+  permissionMatrix,
+  onUpdatePermission,
+  menuVisibility,
+  onToggleMenuVisibility,
+  managedMenus,
+  onChangeManagedMenus,
+  menuOperationPermissions,
+  onUpdateMenuOperationPermission,
+  onSwitchPreviewRole,
+  auditLogs,
+  loginHistory,
+  onBulkImport,
+  onNavigate,
 }) => {
-  const [activeTab, setActiveTab] = useState<'users' | 'classes' | 'subjects' | 'timetables'>('users');
-  const [searchQuery, setSearchQuery] = useState('');
+  const { schools, selectedSchoolId, selectedCampusId, contextLabel } =
+    useSchoolContext();
+
+  const [activeTab, setActiveTab] = useState<AdminTab>(() =>
+    resolveTabFromSubItem(subItem)
+  );
+  const [selectedPermRole, setSelectedPermRole] = useState<ErpRole>('Principal');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  // Confirm Dialog state (replaces window.confirm)
+  const [confirmState, setConfirmState] = useState<{
+    open: boolean;
+    title: string;
+    message: string;
+    confirmLabel: string;
+    tone: 'danger' | 'warning' | 'navy';
+    action: () => void;
+  } | null>(null);
 
   // Modals state
   const [isUserModalOpen, setIsUserModalOpen] = useState(false);
@@ -75,12 +241,37 @@ export const AdminManagementHub: React.FC<AdminManagementHubProps> = ({
 
   const [isClassModalOpen, setIsClassModalOpen] = useState(false);
   const [editingClass, setEditingClass] = useState<SchoolClass | null>(null);
+  const [staffSearchQuery, setStaffSearchQuery] = useState('');
+  const [isStaffDropdownOpen, setIsStaffDropdownOpen] = useState(false);
 
   const [isSubjectModalOpen, setIsSubjectModalOpen] = useState(false);
   const [editingSubject, setEditingSubject] = useState<SchoolSubject | null>(null);
 
   const [isTimetableModalOpen, setIsTimetableModalOpen] = useState(false);
   const [editingTimetable, setEditingTimetable] = useState<TimetableEntry | null>(null);
+  const [ttTeacherSearch, setTtTeacherSearch] = useState('');
+  const [isTtTeacherDropdownOpen, setIsTtTeacherDropdownOpen] = useState(false);
+
+  const [bulkImportEntity, setBulkImportEntity] =
+    useState<AdminBulkEntityType | null>(null);
+
+  // Settings form state
+  const [schoolSettingNote, setSchoolSettingNote] = useState(false);
+  const [apiBaseUrl, setApiBaseUrl] = useState('https://api.leaderserp.edu.in/api/v1');
+  const [smsProvider, setSmsProvider] = useState('MSG91 DLT Enterprise');
+  const [whatsappEnabled, setWhatsappEnabled] = useState(true);
+  const [emailSmtpHost, setEmailSmtpHost] = useState('smtp.leadersgroup.edu.in');
+
+  useEffect(() => {
+    if (subItem) {
+      setActiveTab(resolveTabFromSubItem(subItem));
+    }
+  }, [subItem]);
+
+  const adminCrud = useMemo(
+    () => getModuleCrud(currentRole, 'ADMIN', permissionMatrix),
+    [currentRole, permissionMatrix]
+  );
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -88,13 +279,26 @@ export const AdminManagementHub: React.FC<AdminManagementHubProps> = ({
   };
 
   // User form state
-  const [userForm, setUserForm] = useState({
+  const [userForm, setUserForm] = useState<{
+    username: string;
+    fullName: string;
+    email: string;
+    phone: string;
+    role: ErpRole;
+    schoolId: string;
+    campusId: string;
+    department: string;
+    status: 'Active' | 'Inactive';
+  }>({
     username: '',
     fullName: '',
     email: '',
     phone: '',
-    role: 'Teacher' as SystemUser['role'],
-    status: 'Active' as 'Active' | 'Inactive',
+    role: 'Teacher',
+    schoolId: selectedSchoolId === 'all' ? 'sch-leaders-cbse' : selectedSchoolId,
+    campusId: selectedCampusId === 'all' ? 'all' : selectedCampusId,
+    department: 'Academics',
+    status: 'Active',
   });
 
   // Class form state
@@ -126,6 +330,37 @@ export const AdminManagementHub: React.FC<AdminManagementHubProps> = ({
     teacherName: '',
   });
 
+  // Live filtered active staff for Class Teacher & Timetable picker
+  const activeStaffPool = useMemo(
+    () => staffList.filter((s) => s.status !== 'Archived' && s.status !== 'Resigned'),
+    [staffList]
+  );
+
+  const matchingClassTeacherStaff = useMemo(() => {
+    const q = staffSearchQuery.trim().toLowerCase();
+    if (!q) return activeStaffPool;
+    return activeStaffPool.filter(
+      (st) =>
+        st.name.toLowerCase().includes(q) ||
+        st.empId.toLowerCase().includes(q) ||
+        st.department.toLowerCase().includes(q) ||
+        st.designation.toLowerCase().includes(q) ||
+        (st.subject && st.subject.toLowerCase().includes(q))
+    );
+  }, [activeStaffPool, staffSearchQuery]);
+
+  const matchingTimetableStaff = useMemo(() => {
+    const q = ttTeacherSearch.trim().toLowerCase();
+    if (!q) return activeStaffPool;
+    return activeStaffPool.filter(
+      (st) =>
+        st.name.toLowerCase().includes(q) ||
+        st.empId.toLowerCase().includes(q) ||
+        st.department.toLowerCase().includes(q) ||
+        (st.subject && st.subject.toLowerCase().includes(q))
+    );
+  }, [activeStaffPool, ttTeacherSearch]);
+
   // Handlers for User
   const handleOpenUserModal = (u?: SystemUser) => {
     if (u) {
@@ -136,6 +371,9 @@ export const AdminManagementHub: React.FC<AdminManagementHubProps> = ({
         email: u.email,
         phone: u.phone,
         role: u.role,
+        schoolId: u.schoolId,
+        campusId: u.campusId,
+        department: u.department || 'General',
         status: u.status,
       });
     } else {
@@ -146,6 +384,9 @@ export const AdminManagementHub: React.FC<AdminManagementHubProps> = ({
         email: '',
         phone: '',
         role: 'Teacher',
+        schoolId: selectedSchoolId === 'all' ? schools[0]?.id || 'sch-leaders-cbse' : selectedSchoolId,
+        campusId: selectedCampusId === 'all' ? 'all' : selectedCampusId,
+        department: 'Academics',
         status: 'Active',
       });
     }
@@ -155,14 +396,15 @@ export const AdminManagementHub: React.FC<AdminManagementHubProps> = ({
   const handleSaveUser = (e: React.FormEvent) => {
     e.preventDefault();
     if (editingUser) {
-      onUpdateUser({
-        ...editingUser,
-        ...userForm,
-      });
-      showToast(`User account "${userForm.username}" updated successfully.`);
+      onUpdateUser({ ...editingUser, ...userForm });
+      showToast(`User "${userForm.username}" (${userForm.role}) updated.`);
     } else {
-      onAddUser(userForm);
-      showToast(`New user account "${userForm.username}" created successfully.`);
+      onAddUser({
+        ...userForm,
+        lastLogin: 'Never logged in',
+        passwordResetRequired: true,
+      });
+      showToast(`Created user "${userForm.username}" with role ${userForm.role}.`);
     }
     setIsUserModalOpen(false);
   };
@@ -178,41 +420,56 @@ export const AdminManagementHub: React.FC<AdminManagementHubProps> = ({
         roomNo: c.roomNo,
         classTeacher: c.classTeacher || '',
       });
+      setStaffSearchQuery(c.classTeacher || '');
     } else {
       setEditingClass(null);
       setClassForm({
         gradeName: '',
         curriculum: 'CBSE',
-        sectionsStr: 'A, B',
+        sectionsStr: 'A, B, C',
         roomNo: '',
         classTeacher: '',
       });
+      setStaffSearchQuery('');
     }
+    setIsStaffDropdownOpen(false);
     setIsClassModalOpen(true);
+  };
+
+  const handleSelectClassTeacher = (staff: Staff) => {
+    setClassForm((prev) => ({ ...prev, classTeacher: staff.name }));
+    setStaffSearchQuery(staff.name);
+    setIsStaffDropdownOpen(false);
   };
 
   const handleSaveClass = (e: React.FormEvent) => {
     e.preventDefault();
-    const sectionsArr = classForm.sectionsStr.split(',').map((s) => s.trim()).filter(Boolean);
+    const sectionsArr = classForm.sectionsStr
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+    const resolvedTeacher = classForm.classTeacher.trim() || staffSearchQuery.trim();
     if (editingClass) {
       onUpdateClass({
         ...editingClass,
-        gradeName: classForm.gradeName,
+        gradeName: classForm.gradeName.trim(),
         curriculum: classForm.curriculum,
         sections: sectionsArr,
-        roomNo: classForm.roomNo,
-        classTeacher: classForm.classTeacher,
+        roomNo: classForm.roomNo.trim(),
+        classTeacher: resolvedTeacher,
       });
-      showToast(`Class "${classForm.gradeName}" updated.`);
+      showToast(`Updated "${classForm.gradeName}" (Class Teacher: ${resolvedTeacher || 'Unassigned'}).`);
     } else {
       onAddClass({
-        gradeName: classForm.gradeName,
+        schoolId: selectedSchoolId === 'all' ? 'sch-leaders-cbse' : selectedSchoolId,
+        campusId: selectedCampusId === 'all' ? 'cmp-chennai-hq' : selectedCampusId,
+        gradeName: classForm.gradeName.trim(),
         curriculum: classForm.curriculum,
         sections: sectionsArr,
-        roomNo: classForm.roomNo,
-        classTeacher: classForm.classTeacher,
+        roomNo: classForm.roomNo.trim(),
+        classTeacher: resolvedTeacher,
       });
-      showToast(`Class & sections for "${classForm.gradeName}" created.`);
+      showToast(`Created class "${classForm.gradeName}" with teacher "${resolvedTeacher || 'Unassigned'}".`);
     }
     setIsClassModalOpen(false);
   };
@@ -244,14 +501,14 @@ export const AdminManagementHub: React.FC<AdminManagementHubProps> = ({
   const handleSaveSubject = (e: React.FormEvent) => {
     e.preventDefault();
     if (editingSubject) {
-      onUpdateSubject({
-        ...editingSubject,
-        ...subjectForm,
-      });
-      showToast(`Subject "${subjectForm.name}" updated.`);
+      onUpdateSubject({ ...editingSubject, ...subjectForm });
+      showToast(`Updated subject "${subjectForm.name}".`);
     } else {
-      onAddSubject(subjectForm);
-      showToast(`Subject "${subjectForm.name}" created.`);
+      onAddSubject({
+        ...subjectForm,
+        schoolId: selectedSchoolId === 'all' ? 'sch-leaders-cbse' : selectedSchoolId,
+      });
+      showToast(`Created subject "${subjectForm.name}".`);
     }
     setIsSubjectModalOpen(false);
   };
@@ -269,933 +526,1832 @@ export const AdminManagementHub: React.FC<AdminManagementHubProps> = ({
         subjectName: t.subjectName,
         teacherName: t.teacherName,
       });
+      setTtTeacherSearch(t.teacherName);
     } else {
       setEditingTimetable(null);
       setTimetableForm({
-        grade: 'Class 10',
+        grade: classes[0]?.gradeName || 'Class 10',
         section: 'A',
         day: 'Monday',
         periodNo: 1,
         timeSlot: '09:00 AM - 09:45 AM',
-        subjectName: subjects[0]?.name || 'Mathematics',
-        teacherName: 'Malini Swaminathan',
+        subjectName: subjects[0]?.name || '',
+        teacherName: '',
       });
+      setTtTeacherSearch('');
     }
+    setIsTtTeacherDropdownOpen(false);
     setIsTimetableModalOpen(true);
   };
 
   const handleSaveTimetable = (e: React.FormEvent) => {
     e.preventDefault();
+    const resolvedTeacher = timetableForm.teacherName.trim() || ttTeacherSearch.trim();
     if (editingTimetable) {
       onUpdateTimetable({
         ...editingTimetable,
         ...timetableForm,
+        teacherName: resolvedTeacher,
       });
-      showToast('Timetable period updated successfully.');
+      showToast('Timetable period updated.');
     } else {
-      onAddTimetable(timetableForm);
-      showToast('Timetable period scheduled successfully.');
+      onAddTimetable({
+        ...timetableForm,
+        teacherName: resolvedTeacher,
+        schoolId: selectedSchoolId === 'all' ? 'sch-leaders-cbse' : selectedSchoolId,
+        campusId: selectedCampusId === 'all' ? 'cmp-chennai-hq' : selectedCampusId,
+      });
+      showToast('Added timetable period.');
     }
     setIsTimetableModalOpen(false);
   };
 
+  const selectedFormSchool = schools.find((s) => s.id === userForm.schoolId);
+
+  // Table column definitions
+  const userColumns: TableColumn<SystemUser>[] = [
+    {
+      key: 'user',
+      header: 'User Account',
+      sortable: true,
+      sortValue: (u) => u.fullName,
+      exportValue: (u) => `${u.fullName} (${u.username})`,
+      render: (u) => (
+        <div>
+          <p className="font-semibold text-[#0B1F3A]">{u.fullName}</p>
+          <p className="text-[11px] font-mono text-slate-500">
+            @{u.username} · {u.email}
+          </p>
+        </div>
+      ),
+    },
+    {
+      key: 'role',
+      header: 'RBAC Role',
+      sortable: true,
+      sortValue: (u) => u.role,
+      render: (u) => (
+        <span className="px-2 py-0.5 rounded bg-[#0B1F3A]/8 text-[#0B1F3A] font-semibold text-[11px]">
+          {u.role}
+        </span>
+      ),
+    },
+    {
+      key: 'scope',
+      header: 'School & Campus Scope',
+      sortable: true,
+      sortValue: (u) => getSchoolNameById(u.schoolId, schools),
+      render: (u) => (
+        <div>
+          <p className="font-medium text-slate-800">
+            {getSchoolNameById(u.schoolId, schools)}
+          </p>
+          <p className="text-[10.5px] text-slate-500">
+            {getCampusNameById(u.schoolId, u.campusId, schools)}
+          </p>
+        </div>
+      ),
+    },
+    {
+      key: 'status',
+      header: 'Status',
+      sortable: true,
+      sortValue: (u) => u.status,
+      render: (u) => (
+        <div className="space-y-0.5">
+          <span
+            className={`inline-flex items-center px-2 py-0.5 rounded text-[10.5px] font-bold ${
+              u.status === 'Active'
+                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                : 'bg-rose-50 text-rose-700 border border-rose-200'
+            }`}
+          >
+            {u.status}
+          </span>
+          {u.passwordResetRequired && (
+            <p className="text-[10px] text-amber-700 font-medium">Reset Pending</p>
+          )}
+        </div>
+      ),
+    },
+    {
+      key: 'lastLogin',
+      header: 'Last Login',
+      render: (u) => (
+        <span className="text-[11px] text-slate-500 font-mono">{u.lastLogin || '—'}</span>
+      ),
+    },
+    {
+      key: 'actions',
+      header: 'Actions',
+      align: 'right',
+      render: (u) => (
+        <div className="flex items-center justify-end gap-1.5">
+          <button
+            type="button"
+            title="Edit user & campus scope"
+            disabled={!adminCrud.update}
+            onClick={() => handleOpenUserModal(u)}
+            className="p-1.5 rounded-lg border border-slate-200 text-slate-700 hover:bg-[#0B1F3A] hover:text-white disabled:opacity-40 cursor-pointer"
+          >
+            <Edit className="w-3.5 h-3.5" />
+          </button>
+          <button
+            type="button"
+            title="Reset password"
+            disabled={!adminCrud.update}
+            onClick={() =>
+              setConfirmState({
+                open: true,
+                title: 'Reset User Password',
+                message: `Issue a forced password reset for ${u.fullName} (@${u.username})? This action will be recorded in Audit Logs.`,
+                confirmLabel: 'Reset Password',
+                tone: 'warning',
+                action: () => {
+                  onResetPassword(u.id);
+                  showToast(`Password reset token issued for @${u.username}.`);
+                },
+              })
+            }
+            className="p-1.5 rounded-lg border border-amber-200 text-amber-700 hover:bg-amber-600 hover:text-white disabled:opacity-40 cursor-pointer"
+          >
+            <Key className="w-3.5 h-3.5" />
+          </button>
+          <button
+            type="button"
+            title={u.status === 'Active' ? 'Deactivate user' : 'Activate user'}
+            disabled={!adminCrud.update}
+            onClick={() =>
+              setConfirmState({
+                open: true,
+                title: u.status === 'Active' ? 'Deactivate User Account' : 'Activate User Account',
+                message:
+                  u.status === 'Active'
+                    ? `Deactivating @${u.username} will immediately block ERP access until reactivated.`
+                    : `Reactivate @${u.username} and restore ${u.role} access?`,
+                confirmLabel: u.status === 'Active' ? 'Deactivate' : 'Activate',
+                tone: u.status === 'Active' ? 'danger' : 'navy',
+                action: () => {
+                  onToggleUserStatus(u.id);
+                  showToast(
+                    `Account @${u.username} is now ${
+                      u.status === 'Active' ? 'Inactive' : 'Active'
+                    }.`
+                  );
+                },
+              })
+            }
+            className={`p-1.5 rounded-lg border disabled:opacity-40 cursor-pointer ${
+              u.status === 'Active'
+                ? 'border-rose-200 text-rose-700 hover:bg-rose-600 hover:text-white'
+                : 'border-emerald-200 text-emerald-700 hover:bg-emerald-600 hover:text-white'
+            }`}
+          >
+            {u.status === 'Active' ? (
+              <Lock className="w-3.5 h-3.5" />
+            ) : (
+              <Unlock className="w-3.5 h-3.5" />
+            )}
+          </button>
+          {adminCrud.delete && (
+            <button
+              type="button"
+              title="Delete user"
+              onClick={() =>
+                setConfirmState({
+                  open: true,
+                  title: 'Delete User Account',
+                  message: `Permanently remove @${u.username} from preview accounts?`,
+                  confirmLabel: 'Delete Account',
+                  tone: 'danger',
+                  action: () => {
+                    onDeleteUser(u.id);
+                    showToast(`Removed user @${u.username}.`);
+                  },
+                })
+              }
+              className="p-1.5 rounded-lg border border-slate-200 text-slate-500 hover:bg-rose-600 hover:text-white hover:border-rose-600 cursor-pointer"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+      ),
+    },
+  ];
+
+  const classColumns: TableColumn<SchoolClass>[] = [
+    {
+      key: 'grade',
+      header: 'Grade / Class Name',
+      sortable: true,
+      sortValue: (c) => c.gradeName,
+      render: (c) => <span className="font-bold text-[#0B1F3A]">{c.gradeName}</span>,
+    },
+    {
+      key: 'board',
+      header: 'Education Board',
+      sortable: true,
+      sortValue: (c) => c.curriculum,
+      render: (c) => (
+        <span className="px-2 py-0.5 rounded bg-[#0B1F3A]/8 text-[#0B1F3A] font-semibold text-[11px]">
+          {c.curriculum}
+        </span>
+      ),
+    },
+    {
+      key: 'sections',
+      header: 'Sections',
+      render: (c) => (
+        <div className="flex flex-wrap gap-1">
+          {c.sections.map((sec) => (
+            <span
+              key={sec}
+              className="px-2 py-0.5 rounded bg-amber-50 border border-[#D4AF37]/40 text-[#8A6712] text-[10.5px] font-bold"
+            >
+              Sec {sec}
+            </span>
+          ))}
+        </div>
+      ),
+    },
+    {
+      key: 'room',
+      header: 'Room Number',
+      render: (c) => <span className="font-mono text-slate-600">{c.roomNo}</span>,
+    },
+    {
+      key: 'teacher',
+      header: 'Class Teacher Incharge',
+      sortable: true,
+      sortValue: (c) => c.classTeacher || '',
+      render: (c) => {
+        const matchedStaff = staffList.find((s) => s.name === c.classTeacher);
+        return (
+          <div>
+            <p className="font-semibold text-[#0B1F3A]">
+              {c.classTeacher || 'Unassigned'}
+            </p>
+            {matchedStaff && (
+              <p className="text-[10.5px] text-slate-500">
+                {matchedStaff.empId} · {matchedStaff.department}
+              </p>
+            )}
+          </div>
+        );
+      },
+    },
+    {
+      key: 'actions',
+      header: 'Actions',
+      align: 'right',
+      render: (c) => (
+        <div className="flex items-center justify-end gap-1.5">
+          <button
+            type="button"
+            onClick={() => handleOpenClassModal(c)}
+            className="px-2.5 py-1 rounded-md border border-slate-200 text-xs font-semibold text-[#0B1F3A] hover:bg-[#0B1F3A] hover:text-white cursor-pointer"
+          >
+            Edit
+          </button>
+          <button
+            type="button"
+            onClick={() =>
+              setConfirmState({
+                open: true,
+                title: 'Delete Class Master',
+                message: `Delete "${c.gradeName}" and its sections (${c.sections.join(', ')})?`,
+                confirmLabel: 'Delete Class',
+                tone: 'danger',
+                action: () => {
+                  onDeleteClass(c.id);
+                  showToast(`Deleted class "${c.gradeName}".`);
+                },
+              })
+            }
+            className="px-2.5 py-1 rounded-md bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold cursor-pointer"
+          >
+            Delete
+          </button>
+        </div>
+      ),
+    },
+  ];
+
+  const auditColumns: TableColumn<AuditLog>[] = [
+    {
+      key: 'timestamp',
+      header: 'Timestamp',
+      sortable: true,
+      sortValue: (a) => a.timestamp,
+      render: (a) => <span className="font-mono text-slate-600 whitespace-nowrap">{a.timestamp}</span>,
+    },
+    {
+      key: 'user',
+      header: 'Actor',
+      sortable: true,
+      sortValue: (a) => a.userName,
+      render: (a) => (
+        <div>
+          <p className="font-semibold text-[#0B1F3A]">{a.userName}</p>
+          <p className="text-[10.5px] font-mono text-slate-500">{a.userID}</p>
+        </div>
+      ),
+    },
+    {
+      key: 'action',
+      header: 'Event Type',
+      sortable: true,
+      sortValue: (a) => a.actionType,
+      render: (a) => (
+        <span className="px-2 py-0.5 rounded bg-[#0B1F3A]/8 text-[#0B1F3A] font-mono font-semibold text-[10.5px]">
+          {a.actionType}
+        </span>
+      ),
+    },
+    {
+      key: 'ref',
+      header: 'Reference',
+      render: (a) => <span className="font-mono text-slate-600">{a.referenceID}</span>,
+    },
+    {
+      key: 'remarks',
+      header: 'Remarks',
+      render: (a) => <span className="text-slate-700">{a.remarks}</span>,
+    },
+  ];
+
+  const loginColumns: TableColumn<LoginHistoryEntry>[] = [
+    {
+      key: 'time',
+      header: 'Login Time',
+      sortable: true,
+      sortValue: (l) => l.timestamp,
+      render: (l) => <span className="font-mono text-slate-600 whitespace-nowrap">{l.timestamp}</span>,
+    },
+    {
+      key: 'user',
+      header: 'User & Role',
+      sortable: true,
+      sortValue: (l) => l.fullName,
+      render: (l) => (
+        <div>
+          <p className="font-semibold text-[#0B1F3A]">{l.fullName}</p>
+          <p className="text-[10.5px] text-slate-500">
+            @{l.username} · <span className="font-semibold text-[#9A7418]">{l.role}</span>
+          </p>
+        </div>
+      ),
+    },
+    {
+      key: 'tenant',
+      header: 'School / Campus Scope',
+      render: (l) => (
+        <div>
+          <p className="font-medium text-slate-800">{l.schoolName}</p>
+          <p className="text-[10.5px] text-slate-500">{l.campusName}</p>
+        </div>
+      ),
+    },
+    {
+      key: 'device',
+      header: 'IP & Device',
+      render: (l) => (
+        <div>
+          <p className="font-mono text-[11px] text-slate-700">{l.ipAddress}</p>
+          <p className="text-[10.5px] text-slate-500">{l.device}</p>
+        </div>
+      ),
+    },
+    {
+      key: 'status',
+      header: 'Outcome',
+      align: 'right',
+      render: (l) => (
+        <span
+          className={`px-2 py-0.5 rounded text-[10.5px] font-bold ${
+            l.status === 'Success'
+              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+              : 'bg-rose-50 text-rose-700 border border-rose-200'
+          }`}
+        >
+          {l.status}
+        </span>
+      ),
+    },
+  ];
+
   return (
-    <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-6">
-      {/* Toast Notification */}
+    <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-5">
+      <ModulePageHeader
+        contextLabel={`System Administration & RBAC · ${contextLabel}`}
+        title="System Administration, RBAC & Academic Masters"
+        subtitle="Manage 19 enterprise roles, module CRUD permissions, school/campus access isolation, users, classes, audit logs, login history, and MySQL 8+ schema."
+        tabs={[
+          { id: 'users', label: `Users (${users.length})` },
+          { id: 'roles', label: 'Roles (19)' },
+          { id: 'permissions', label: 'CRUD Permissions' },
+          { id: 'menus', label: 'Menu Control' },
+          { id: 'classes', label: `Classes & Teachers (${classes.length})` },
+          { id: 'subjects', label: `Subjects (${subjects.length})` },
+          { id: 'timetables', label: `Timetables (${timetables.length})` },
+          { id: 'database-schema', label: 'MySQL 8+ Schema (22)' },
+          { id: 'audit', label: `Audit Logs (${auditLogs.length})` },
+          { id: 'login-history', label: `Login History (${loginHistory.length})` },
+          { id: 'school-settings', label: 'Settings & API' },
+          { id: 'monitoring', label: 'Monitoring' },
+        ]}
+        activeTab={
+          activeTab === 'academic-settings' ||
+          activeTab === 'notification-settings' ||
+          activeTab === 'api-config'
+            ? 'school-settings'
+            : activeTab
+        }
+        onTabChange={(id) => setActiveTab(id as AdminTab)}
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            {onNavigate && (
+              <button
+                type="button"
+                onClick={() => onNavigate('SETTINGS', 'settings-backup')}
+                className="px-3 py-2 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-xs font-semibold text-[#0B1F3A] cursor-pointer"
+              >
+                Backup &amp; Restore
+              </button>
+            )}
+            {activeTab === 'users' && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => {
+                    downloadAdminSampleTemplate('users', 'xlsx', schools, staffList);
+                    showToast('Exported sample Excel template for Application Users (.xlsx).');
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-[#D4AF37]/60 bg-[#D4AF37]/10 hover:bg-[#D4AF37]/20 text-[#0B1F3A] text-xs font-semibold cursor-pointer"
+                >
+                  <FileSpreadsheet className="w-3.5 h-3.5 text-[#9A7418]" />
+                  <span>Sample Excel Template</span>
+                </button>
+                <button
+                  type="button"
+                  disabled={!adminCrud.create}
+                  onClick={() => setBulkImportEntity('users')}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-[#0B1F3A]/20 bg-white hover:bg-slate-50 text-[#0B1F3A] text-xs font-semibold disabled:opacity-40 cursor-pointer"
+                >
+                  <Upload className="w-3.5 h-3.5 text-[#9A7418]" />
+                  <span>Bulk Import</span>
+                </button>
+                <button
+                  type="button"
+                  disabled={!adminCrud.create}
+                  onClick={() => handleOpenUserModal()}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-[#0B1F3A] hover:bg-[#132E54] text-white text-xs font-semibold disabled:opacity-40 cursor-pointer"
+                >
+                  <UserPlus className="w-3.5 h-3.5 text-[#D4AF37]" />
+                  <span>Add User Account</span>
+                </button>
+              </>
+            )}
+            {activeTab === 'classes' && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => {
+                    downloadAdminSampleTemplate('classes', 'xlsx', schools, staffList);
+                    showToast('Exported sample Excel template for Classes & Teachers (.xlsx).');
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-[#D4AF37]/60 bg-[#D4AF37]/10 hover:bg-[#D4AF37]/20 text-[#0B1F3A] text-xs font-semibold cursor-pointer"
+                >
+                  <FileSpreadsheet className="w-3.5 h-3.5 text-[#9A7418]" />
+                  <span>Sample Excel Template</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setBulkImportEntity('classes')}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-[#0B1F3A]/20 bg-white hover:bg-slate-50 text-[#0B1F3A] text-xs font-semibold cursor-pointer"
+                >
+                  <Upload className="w-3.5 h-3.5 text-[#9A7418]" />
+                  <span>Bulk Import</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleOpenClassModal()}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-[#0B1F3A] hover:bg-[#132E54] text-white text-xs font-semibold cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5 text-[#D4AF37]" />
+                  <span>Create Class</span>
+                </button>
+              </>
+            )}
+            {activeTab === 'subjects' && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => {
+                    downloadAdminSampleTemplate('subjects', 'xlsx', schools, staffList);
+                    showToast('Exported sample Excel template for Subjects (.xlsx).');
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-[#D4AF37]/60 bg-[#D4AF37]/10 hover:bg-[#D4AF37]/20 text-[#0B1F3A] text-xs font-semibold cursor-pointer"
+                >
+                  <FileSpreadsheet className="w-3.5 h-3.5 text-[#9A7418]" />
+                  <span>Sample Excel Template</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setBulkImportEntity('subjects')}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-[#0B1F3A]/20 bg-white hover:bg-slate-50 text-[#0B1F3A] text-xs font-semibold cursor-pointer"
+                >
+                  <Upload className="w-3.5 h-3.5 text-[#9A7418]" />
+                  <span>Bulk Import</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleOpenSubjectModal()}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-[#0B1F3A] hover:bg-[#132E54] text-white text-xs font-semibold cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5 text-[#D4AF37]" />
+                  <span>Add Subject</span>
+                </button>
+              </>
+            )}
+            {activeTab === 'timetables' && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => {
+                    downloadAdminSampleTemplate('timetables', 'xlsx', schools, staffList);
+                    showToast('Exported sample Excel template for Timetables (.xlsx).');
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-[#D4AF37]/60 bg-[#D4AF37]/10 hover:bg-[#D4AF37]/20 text-[#0B1F3A] text-xs font-semibold cursor-pointer"
+                >
+                  <FileSpreadsheet className="w-3.5 h-3.5 text-[#9A7418]" />
+                  <span>Sample Excel Template</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setBulkImportEntity('timetables')}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-[#0B1F3A]/20 bg-white hover:bg-slate-50 text-[#0B1F3A] text-xs font-semibold cursor-pointer"
+                >
+                  <Upload className="w-3.5 h-3.5 text-[#9A7418]" />
+                  <span>Bulk Import</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleOpenTimetableModal()}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-[#0B1F3A] hover:bg-[#132E54] text-white text-xs font-semibold cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5 text-[#D4AF37]" />
+                  <span>Add Period</span>
+                </button>
+              </>
+            )}
+          </div>
+        }
+      />
+
       {toastMessage && (
-        <div className="fixed bottom-6 right-6 z-50 bg-emerald-900 text-white px-4 py-3 rounded-xl shadow-xl flex items-center gap-2 text-xs font-semibold animate-in fade-in slide-in-from-bottom-2">
-          <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-          <span>{toastMessage}</span>
+        <div className="px-4 py-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold flex items-center justify-between">
+          <span className="flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+            {toastMessage}
+          </span>
+          <button
+            type="button"
+            onClick={() => setToastMessage(null)}
+            className="text-emerald-700 hover:text-emerald-900 cursor-pointer"
+          >
+            <X className="w-4 h-4" />
+          </button>
         </div>
       )}
 
-      {/* Header Bar */}
-      <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h2 className="text-xl font-bold text-gray-900 tracking-tight flex items-center gap-2">
-            <Shield className="w-6 h-6 text-[#0B1F3A]" />
-            <span>Admin Management Hub & Master Config</span>
-          </h2>
-          <p className="text-xs text-gray-500 mt-0.5">
-            Manage User Logins, Password Resets, Status Toggles, Classes & Sections, Subjects, and Timetables with Full CRUD
-          </p>
-        </div>
-
-        {/* Action Buttons */}
-        <div className="flex items-center gap-2">
-          {activeTab === 'users' && (
-            <button
-              onClick={() => handleOpenUserModal()}
-              className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm transition-colors cursor-pointer"
-            >
-              <UserPlus className="w-4 h-4" />
-              <span>+ Create User Login</span>
-            </button>
-          )}
-          {activeTab === 'classes' && (
-            <button
-              onClick={() => handleOpenClassModal()}
-              className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm transition-colors cursor-pointer"
-            >
-              <Plus className="w-4 h-4" />
-              <span>+ Create Class & Sections</span>
-            </button>
-          )}
-          {activeTab === 'subjects' && (
-            <button
-              onClick={() => handleOpenSubjectModal()}
-              className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm transition-colors cursor-pointer"
-            >
-              <Plus className="w-4 h-4" />
-              <span>+ Create Subject</span>
-            </button>
-          )}
-          {activeTab === 'timetables' && (
-            <button
-              onClick={() => handleOpenTimetableModal()}
-              className="px-3.5 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm transition-colors cursor-pointer"
-            >
-              <Plus className="w-4 h-4" />
-              <span>+ Schedule Timetable Period</span>
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* Tabs Navigation */}
-      <div className="flex flex-wrap items-center gap-2 bg-white p-2 rounded-xl shadow-xs border border-gray-100">
-        <button
-          onClick={() => setActiveTab('users')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${
-            activeTab === 'users'
-              ? 'bg-[#0B1F3A] text-white shadow-xs'
-              : 'text-gray-600 hover:bg-gray-100'
-          }`}
-        >
-          <Users className="w-4 h-4" />
-          <span>User Accounts & Logins ({users.length})</span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('classes')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${
-            activeTab === 'classes'
-              ? 'bg-[#0B1F3A] text-white shadow-xs'
-              : 'text-gray-600 hover:bg-gray-100'
-          }`}
-        >
-          <Layers className="w-4 h-4" />
-          <span>Classes & Sections ({classes.length})</span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('subjects')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${
-            activeTab === 'subjects'
-              ? 'bg-[#0B1F3A] text-white shadow-xs'
-              : 'text-gray-600 hover:bg-gray-100'
-          }`}
-        >
-          <BookOpen className="w-4 h-4" />
-          <span>Subjects Master ({subjects.length})</span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('timetables')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${
-            activeTab === 'timetables'
-              ? 'bg-[#0B1F3A] text-white shadow-xs'
-              : 'text-gray-600 hover:bg-gray-100'
-          }`}
-        >
-          <Calendar className="w-4 h-4" />
-          <span>Timetable Builder ({timetables.length})</span>
-        </button>
-      </div>
-
-      {/* SECTION 1: USER ACCOUNTS & LOGINS */}
+      {/* 1. USER MANAGEMENT */}
       {activeTab === 'users' && (
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-          <div className="p-4 border-b border-gray-100 flex items-center justify-between bg-gray-50/60">
+        <EnterpriseDataTable
+          title="Multi-School User Accounts & Access Scope"
+          subtitle="Create accounts, assign any of the 19 RBAC roles, restrict campus access, activate/deactivate accounts, or trigger password resets."
+          columns={userColumns}
+          data={users}
+          rowKey={(u) => u.id}
+          exportFileName="erp_users"
+          searchPlaceholder="Search name, username, role, or email..."
+          searchFilter={(u, q) =>
+            u.fullName.toLowerCase().includes(q) ||
+            u.username.toLowerCase().includes(q) ||
+            u.role.toLowerCase().includes(q) ||
+            u.email.toLowerCase().includes(q)
+          }
+        />
+      )}
+
+      {/* 2. ROLE MANAGEMENT (ALL 19 ROLES) */}
+      {activeTab === 'roles' && (
+        <div className="bg-white border border-slate-200/80 rounded-xl overflow-hidden">
+          <div className="px-5 py-4 border-b border-slate-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
             <div>
-              <h3 className="font-bold text-gray-900 text-sm">User Authentication & Login Control</h3>
-              <p className="text-xs text-gray-500">Create users, reset passwords, toggle active/inactive status, and manage role permissions.</p>
+              <h2 className="text-sm font-bold text-[#0B1F3A]">
+                Enterprise RBAC Role Catalog (All 19 System Roles)
+              </h2>
+              <p className="text-[11px] text-slate-500">
+                Click &ldquo;Preview Role&rdquo; to test module access and school/campus isolation live, or edit CRUD permissions.
+              </p>
             </div>
-            <div className="relative">
-              <Search className="w-3.5 h-3.5 text-gray-400 absolute left-3 top-2.5" />
+            <span className="text-xs font-semibold text-[#9A7418]">
+              Active Role: {currentRole}
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5 p-4 bg-[#F8FAFC]">
+            {ALL_ERP_ROLES.map((def) => {
+              const userCount = users.filter((u) => u.role === def.role).length;
+              const modCount = CORE_MODULE_IDS.filter((m) => {
+                const c = getModuleCrud(def.role, m, permissionMatrix);
+                return c.read || c.create || c.update || c.delete;
+              }).length;
+              const isCurrent = currentRole === def.role;
+
+              return (
+                <div
+                  key={def.role}
+                  className={`bg-white rounded-xl p-4 border flex flex-col justify-between gap-3 ${
+                    isCurrent
+                      ? 'border-[#C9A227] ring-1 ring-[#C9A227]/40'
+                      : 'border-slate-200/80'
+                  }`}
+                >
+                  <div>
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <span className="text-[10px] font-mono font-bold text-slate-400">
+                          #{String(def.index).padStart(2, '0')} · {def.shortCode}
+                        </span>
+                        <h3 className="text-sm font-bold text-[#0B1F3A] mt-0.5">
+                          {def.role}
+                        </h3>
+                      </div>
+                      <span
+                        className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                          def.scope === 'Platform' || def.scope === 'Organization'
+                            ? 'bg-[#0B1F3A] text-[#D4AF37]'
+                            : def.scope === 'School'
+                            ? 'bg-sky-50 text-sky-800 border border-sky-200'
+                            : def.scope === 'Campus'
+                            ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                            : 'bg-slate-100 text-slate-700'
+                        }`}
+                      >
+                        {def.scope}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-600 mt-1.5 leading-relaxed">
+                      {def.description}
+                    </p>
+                  </div>
+
+                  <div className="pt-3 border-t border-slate-100 space-y-2.5">
+                    <div className="flex items-center justify-between text-[11px] text-slate-500">
+                      <span className="tabular-nums">
+                        <strong className="text-[#0B1F3A]">{modCount}/17</strong> modules
+                      </span>
+                      <span className="tabular-nums">
+                        <strong className="text-[#0B1F3A]">{userCount}</strong> account(s)
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedPermRole(def.role);
+                          setActiveTab('permissions');
+                        }}
+                        className="flex-1 py-1.5 px-2.5 rounded-lg border border-slate-200 hover:border-[#0B1F3A] text-[11px] font-semibold text-[#0B1F3A] transition-colors cursor-pointer"
+                      >
+                        CRUD Matrix
+                      </button>
+                      <button
+                        type="button"
+                        disabled={isCurrent}
+                        onClick={() => {
+                          onSwitchPreviewRole(def.role);
+                          showToast(`Switched preview workspace to ${def.role} (${def.scope} scope).`);
+                        }}
+                        className={`flex-1 py-1.5 px-2.5 rounded-lg text-[11px] font-semibold transition-colors cursor-pointer ${
+                          isCurrent
+                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 cursor-default'
+                            : 'bg-[#0B1F3A] hover:bg-[#132E54] text-white'
+                        }`}
+                      >
+                        {isCurrent ? 'Active Role' : 'Preview Role'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* 3. PERMISSION MANAGEMENT (INTERACTIVE CRUD MATRIX) */}
+      {activeTab === 'permissions' && (
+        <div className="bg-white border border-slate-200/80 rounded-xl overflow-hidden">
+          <div className="px-5 py-4 border-b border-slate-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-[#F8FAFC]">
+            <div>
+              <h2 className="text-sm font-bold text-[#0B1F3A]">
+                Module-Based Create / Read / Update / Delete (CRUD) Matrix
+              </h2>
+              <p className="text-[11px] text-slate-500">
+                Changes apply immediately to sidebar navigation visibility and module action controls.
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <label className="text-xs font-semibold text-slate-600">Configure Role:</label>
+              <select
+                value={selectedPermRole}
+                onChange={(e) => setSelectedPermRole(e.target.value as ErpRole)}
+                className="px-3 py-1.5 text-xs font-bold text-[#0B1F3A] bg-white border border-slate-300 rounded-lg"
+              >
+                {ALL_ERP_ROLES.map((r) => (
+                  <option key={r.role} value={r.role}>
+                    {r.index}. {r.role} ({r.scope})
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse text-xs">
+              <thead>
+                <tr className="bg-[#F8FAFC] border-b border-slate-200/80 text-[11px] uppercase tracking-wider text-slate-500">
+                  <th className="px-4 py-3 font-semibold">Module</th>
+                  <th className="px-4 py-3 font-semibold text-center">Create (C)</th>
+                  <th className="px-4 py-3 font-semibold text-center">Read (R)</th>
+                  <th className="px-4 py-3 font-semibold text-center">Update (U)</th>
+                  <th className="px-4 py-3 font-semibold text-center">Delete (D)</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {MAIN_ERP_MENUS.map((menu) => {
+                  const crud = getModuleCrud(selectedPermRole, menu.id, permissionMatrix);
+                  const fields: Array<keyof CrudPermissionSet> = [
+                    'create',
+                    'read',
+                    'update',
+                    'delete',
+                  ];
+                  return (
+                    <tr key={menu.id} className="hover:bg-[#F8FAFC]">
+                      <td className="px-4 py-3">
+                        <p className="font-semibold text-[#0B1F3A]">
+                          {menu.index}. {menu.label}
+                        </p>
+                        <p className="text-[10.5px] text-slate-500">{menu.description}</p>
+                      </td>
+                      {fields.map((field) => (
+                        <td key={field} className="px-4 py-3 text-center">
+                          <input
+                            type="checkbox"
+                            checked={crud[field]}
+                            disabled={
+                              selectedPermRole === 'Super Administrator' && menu.id === 'ADMIN'
+                            }
+                            onChange={(e) => {
+                              onUpdatePermission(
+                                selectedPermRole,
+                                menu.id,
+                                field,
+                                e.target.checked
+                              );
+                              showToast(
+                                `Updated ${selectedPermRole} → ${menu.shortLabel} (${field.toUpperCase()}: ${
+                                  e.target.checked ? 'Allowed' : 'Denied'
+                                })`
+                              );
+                            }}
+                            className="w-4 h-4 accent-[#0B1F3A] cursor-pointer"
+                          />
+                        </td>
+                      ))}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* 4. MENU MANAGEMENT (FULL HIERARCHY, DRAG-AND-DROP, DEPENDENCY CHECKS & RBAC) */}
+      {activeTab === 'menus' && (
+        <MenuManagementModule
+          currentRole={currentRole}
+          managedMenus={managedMenus}
+          onChangeManagedMenus={onChangeManagedMenus}
+          permissionMatrix={permissionMatrix}
+          menuOperationPermissions={menuOperationPermissions}
+          onUpdateMenuOperationPermission={onUpdateMenuOperationPermission}
+          onNotify={showToast}
+        />
+      )}
+
+      {/* 5. CLASS & SECTION MASTERS WITH LIVE STAFF PICKER */}
+      {activeTab === 'classes' && (
+        <EnterpriseDataTable
+          title="Class, Section & Class Teacher Master"
+          subtitle="Create classes across boards and assign Class Teacher Incharge directly from the live Staff directory."
+          columns={classColumns}
+          data={classes}
+          rowKey={(c) => c.id}
+          exportFileName="class_section_masters"
+          searchPlaceholder="Search class, board, room, or class teacher..."
+          searchFilter={(c, q) =>
+            c.gradeName.toLowerCase().includes(q) ||
+            c.curriculum.toLowerCase().includes(q) ||
+            (c.classTeacher || '').toLowerCase().includes(q) ||
+            c.roomNo.toLowerCase().includes(q)
+          }
+        />
+      )}
+
+      {/* 6. SUBJECTS MASTER */}
+      {activeTab === 'subjects' && (
+        <EnterpriseDataTable
+          title="Academic Subjects Catalog"
+          subtitle="Core, elective, and co-scholastic subjects scoped to the active school."
+          columns={[
+            {
+              key: 'code',
+              header: 'Code',
+              sortable: true,
+              sortValue: (s) => s.code,
+              render: (s) => <span className="font-mono font-bold text-[#0B1F3A]">{s.code}</span>,
+            },
+            {
+              key: 'name',
+              header: 'Subject Name',
+              sortable: true,
+              sortValue: (s) => s.name,
+              render: (s) => <span className="font-semibold text-[#0B1F3A]">{s.name}</span>,
+            },
+            {
+              key: 'type',
+              header: 'Category',
+              render: (s) => <span className="text-slate-700">{s.type}</span>,
+            },
+            {
+              key: 'grade',
+              header: 'Grade Level',
+              render: (s) => <span className="text-slate-600">{s.gradeLevel}</span>,
+            },
+            {
+              key: 'max',
+              header: 'Max Marks',
+              align: 'right',
+              render: (s) => <span className="font-mono font-semibold">{s.maxMarks}</span>,
+            },
+            {
+              key: 'actions',
+              header: 'Actions',
+              align: 'right',
+              render: (s) => (
+                <div className="flex items-center justify-end gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => handleOpenSubjectModal(s)}
+                    className="px-2.5 py-1 rounded-md border border-slate-200 text-xs font-semibold text-[#0B1F3A] hover:bg-[#0B1F3A] hover:text-white cursor-pointer"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setConfirmState({
+                        open: true,
+                        title: 'Delete Subject',
+                        message: `Remove subject "${s.name}" (${s.code})?`,
+                        confirmLabel: 'Delete',
+                        tone: 'danger',
+                        action: () => {
+                          onDeleteSubject(s.id);
+                          showToast(`Deleted subject "${s.name}".`);
+                        },
+                      })
+                    }
+                    className="px-2.5 py-1 rounded-md bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold cursor-pointer"
+                  >
+                    Delete
+                  </button>
+                </div>
+              ),
+            },
+          ]}
+          data={subjects}
+          rowKey={(s) => s.id}
+          exportFileName="subjects_master"
+          searchPlaceholder="Search subject code, name, or grade..."
+          searchFilter={(s, q) =>
+            s.name.toLowerCase().includes(q) ||
+            s.code.toLowerCase().includes(q) ||
+            s.gradeLevel.toLowerCase().includes(q)
+          }
+        />
+      )}
+
+      {/* 7. TIMETABLES BUILDER */}
+      {activeTab === 'timetables' && (
+        <EnterpriseDataTable
+          title="Weekly Class Timetable Builder"
+          subtitle="Period schedules with searchable faculty assignments from Staff Management."
+          columns={[
+            {
+              key: 'class',
+              header: 'Class & Section',
+              sortable: true,
+              sortValue: (t) => `${t.grade}-${t.section}`,
+              render: (t) => (
+                <span className="font-bold text-[#0B1F3A]">
+                  {t.grade} · Sec {t.section}
+                </span>
+              ),
+            },
+            {
+              key: 'day',
+              header: 'Day & Period',
+              render: (t) => (
+                <div>
+                  <p className="font-semibold text-slate-800">
+                    {t.day} · Period {t.periodNo}
+                  </p>
+                  <p className="text-[10.5px] font-mono text-slate-500">{t.timeSlot}</p>
+                </div>
+              ),
+            },
+            {
+              key: 'subject',
+              header: 'Subject',
+              render: (t) => <span className="font-medium text-[#0B1F3A]">{t.subjectName}</span>,
+            },
+            {
+              key: 'teacher',
+              header: 'Assigned Faculty',
+              render: (t) => <span className="text-slate-700">{t.teacherName}</span>,
+            },
+            {
+              key: 'actions',
+              header: 'Actions',
+              align: 'right',
+              render: (t) => (
+                <div className="flex items-center justify-end gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => handleOpenTimetableModal(t)}
+                    className="px-2.5 py-1 rounded-md border border-slate-200 text-xs font-semibold text-[#0B1F3A] hover:bg-[#0B1F3A] hover:text-white cursor-pointer"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onDeleteTimetable(t.id)}
+                    className="px-2.5 py-1 rounded-md bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold cursor-pointer"
+                  >
+                    Delete
+                  </button>
+                </div>
+              ),
+            },
+          ]}
+          data={timetables}
+          rowKey={(t) => t.id}
+          exportFileName="timetable_schedule"
+          searchPlaceholder="Search class, day, subject, or teacher..."
+          searchFilter={(t, q) =>
+            t.grade.toLowerCase().includes(q) ||
+            t.subjectName.toLowerCase().includes(q) ||
+            t.teacherName.toLowerCase().includes(q) ||
+            t.day.toLowerCase().includes(q)
+          }
+        />
+      )}
+
+      {/* 8. MYSQL 8+ NORMALIZED DATABASE ARCHITECTURE */}
+      {activeTab === 'database-schema' && <DatabaseArchitecturePanel />}
+
+      {/* 9. AUDIT LOGS */}
+      {activeTab === 'audit' && (
+        <EnterpriseDataTable
+          title="Security & Operations Audit Logs"
+          subtitle="Tracks logins, role permission updates, password resets, user activations, fee receipts, and stock adjustments."
+          columns={auditColumns}
+          data={auditLogs}
+          rowKey={(a) => a.id}
+          exportFileName="erp_audit_logs"
+          searchPlaceholder="Search actor, event type, reference, or remarks..."
+          searchFilter={(a, q) =>
+            a.userName.toLowerCase().includes(q) ||
+            a.actionType.toLowerCase().includes(q) ||
+            a.referenceID.toLowerCase().includes(q) ||
+            a.remarks.toLowerCase().includes(q)
+          }
+        />
+      )}
+
+      {/* 10. LOGIN HISTORY */}
+      {activeTab === 'login-history' && (
+        <EnterpriseDataTable
+          title="Authentication & Login History"
+          subtitle="Chronological sign-in and role-switch audit across all schools and campuses."
+          columns={loginColumns}
+          data={loginHistory}
+          rowKey={(l) => l.id}
+          exportFileName="erp_login_history"
+          searchPlaceholder="Search user, role, school, IP, or status..."
+          searchFilter={(l, q) =>
+            l.fullName.toLowerCase().includes(q) ||
+            l.username.toLowerCase().includes(q) ||
+            l.role.toLowerCase().includes(q) ||
+            l.schoolName.toLowerCase().includes(q) ||
+            l.ipAddress.toLowerCase().includes(q)
+          }
+        />
+      )}
+
+      {/* 11. SCHOOL, ACADEMIC, NOTIFICATION & API SETTINGS */}
+      {(activeTab === 'school-settings' ||
+        activeTab === 'academic-settings' ||
+        activeTab === 'notification-settings' ||
+        activeTab === 'api-config') && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div className="bg-white border border-slate-200/80 rounded-xl p-5 space-y-4">
+            <div className="flex items-center gap-2 text-[#0B1F3A]">
+              <Sliders className="w-4 h-4 text-[#9A7418]" />
+              <h3 className="text-sm font-bold">School &amp; Academic Settings</h3>
+            </div>
+            <div className="space-y-3 text-xs">
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">
+                  Minimum Attendance Threshold (%)
+                </label>
+                <input
+                  type="number"
+                  defaultValue={75}
+                  className="w-full px-3 py-2 bg-[#F8FAFC] border border-slate-200 rounded-lg font-mono"
+                />
+              </div>
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">
+                  Auto-Promotion Grading Rule
+                </label>
+                <select className="w-full px-3 py-2 bg-[#F8FAFC] border border-slate-200 rounded-lg">
+                  <option>Pass all core subjects (&gt;= 35%)</option>
+                  <option>CBSE 9-Point Scale (Grade D or above)</option>
+                  <option>IB Criterion Minimum Level 3</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white border border-slate-200/80 rounded-xl p-5 space-y-4">
+            <div className="flex items-center gap-2 text-[#0B1F3A]">
+              <Server className="w-4 h-4 text-[#9A7418]" />
+              <h3 className="text-sm font-bold">
+                Notification &amp; Django REST API Configuration
+              </h3>
+            </div>
+            <div className="space-y-3 text-xs">
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">
+                  Planned Django REST API Base URL
+                </label>
+                <input
+                  type="text"
+                  value={apiBaseUrl}
+                  onChange={(e) => setApiBaseUrl(e.target.value)}
+                  className="w-full px-3 py-2 bg-[#F8FAFC] border border-slate-200 rounded-lg font-mono"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">SMS Gateway</label>
+                  <input
+                    type="text"
+                    value={smsProvider}
+                    onChange={(e) => setSmsProvider(e.target.value)}
+                    className="w-full px-3 py-2 bg-[#F8FAFC] border border-slate-200 rounded-lg"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Email SMTP</label>
+                  <input
+                    type="text"
+                    value={emailSmtpHost}
+                    onChange={(e) => setEmailSmtpHost(e.target.value)}
+                    className="w-full px-3 py-2 bg-[#F8FAFC] border border-slate-200 rounded-lg font-mono"
+                  />
+                </div>
+              </div>
+              <label className="flex items-center justify-between p-2.5 bg-[#F8FAFC] rounded-lg border border-slate-200 cursor-pointer">
+                <span className="font-semibold text-[#0B1F3A]">
+                  WhatsApp Official Business API Dispatch
+                </span>
+                <input
+                  type="checkbox"
+                  checked={whatsappEnabled}
+                  onChange={(e) => setWhatsappEnabled(e.target.checked)}
+                  className="w-4 h-4 accent-[#0B1F3A]"
+                />
+              </label>
+            </div>
+            <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+              {schoolSettingNote ? (
+                <span className="text-xs font-semibold text-emerald-700">
+                  Configuration saved to UI preview
+                </span>
+              ) : (
+                <span className="text-[11px] text-slate-400">
+                  Frontend preview · Ready for Django REST endpoints
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={() => {
+                  setSchoolSettingNote(true);
+                  setTimeout(() => setSchoolSettingNote(false), 3000);
+                }}
+                className="px-4 py-2 rounded-lg bg-[#0B1F3A] hover:bg-[#132E54] text-white text-xs font-semibold cursor-pointer"
+              >
+                Save Configuration
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 12. SYSTEM MONITORING */}
+      {activeTab === 'monitoring' && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="bg-white border border-slate-200/80 rounded-xl p-5 space-y-2">
+            <div className="flex items-center gap-2 text-[#0B1F3A] font-bold text-sm">
+              <Activity className="w-4 h-4 text-emerald-600" />
+              <span>Multi-Tenant Isolation</span>
+            </div>
+            <p className="text-xs text-slate-600">
+              Active tenant filtering enforced across{' '}
+              <strong>{schools.length} schools</strong> and{' '}
+              <strong>{schools.reduce((a, s) => a + s.campuses.length, 0)} campuses</strong>.
+            </p>
+            <p className="text-[11px] font-mono text-emerald-700 font-semibold">
+              Mode: Frontend Preview State
+            </p>
+          </div>
+          <div className="bg-white border border-slate-200/80 rounded-xl p-5 space-y-2">
+            <div className="flex items-center gap-2 text-[#0B1F3A] font-bold text-sm">
+              <Shield className="w-4 h-4 text-[#9A7418]" />
+              <span>RBAC Engine</span>
+            </div>
+            <p className="text-xs text-slate-600">
+              <strong>19 Roles</strong> · <strong>17 Modules</strong> · Granular C/R/U/D rules active for{' '}
+              <strong>{currentRole}</strong>.
+            </p>
+            <p className="text-[11px] font-mono text-[#0B1F3A] font-semibold">
+              {users.filter((u) => u.status === 'Active').length} Active / {users.length} Total Accounts
+            </p>
+          </div>
+          <div className="bg-white border border-slate-200/80 rounded-xl p-5 space-y-2">
+            <div className="flex items-center gap-2 text-[#0B1F3A] font-bold text-sm">
+              <Database className="w-4 h-4 text-sky-700" />
+              <span>Target Backend Stack</span>
+            </div>
+            <p className="text-xs text-slate-600">
+              Designed for <strong>Python Django REST Framework</strong> +{' '}
+              <strong>MySQL 8.0+</strong> (22 normalized table groups).
+            </p>
+            <button
+              type="button"
+              onClick={() => setActiveTab('database-schema')}
+              className="text-xs font-semibold text-[#0B1F3A] hover:text-[#9A7418] cursor-pointer"
+            >
+              Inspect MySQL 8+ Schema →
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* CREATE / EDIT USER MODAL */}
+      <EnterpriseFormModal
+        isOpen={isUserModalOpen}
+        onClose={() => setIsUserModalOpen(false)}
+        title={editingUser ? 'Edit User Account & Scope' : 'Create Multi-School User Account'}
+        subtitle="Assign role, school isolation tenant, and campus-level restriction"
+      >
+        <form onSubmit={handleSaveUser} className="space-y-3.5 text-xs">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block font-semibold text-[#0B1F3A] mb-1">Full Name *</label>
               <input
                 type="text"
-                placeholder="Search user..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-8 pr-3 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none w-48 bg-white"
+                required
+                value={userForm.fullName}
+                onChange={(e) => setUserForm({ ...userForm, fullName: e.target.value })}
+                placeholder="e.g. Dr. Arun Kumar"
+                className="w-full px-3 py-2 bg-[#F8FAFC] border border-slate-300 rounded-lg"
+              />
+            </div>
+            <div>
+              <label className="block font-semibold text-[#0B1F3A] mb-1">Username *</label>
+              <input
+                type="text"
+                required
+                value={userForm.username}
+                onChange={(e) => setUserForm({ ...userForm, username: e.target.value })}
+                placeholder="e.g. arun_principal"
+                className="w-full px-3 py-2 bg-[#F8FAFC] border border-slate-300 rounded-lg font-mono"
               />
             </div>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-gray-100/70 text-gray-700 font-semibold border-b border-gray-200">
-                <tr>
-                  <th className="px-4 py-3">Username & Name</th>
-                  <th className="px-4 py-3">Role</th>
-                  <th className="px-4 py-3">Email & Phone</th>
-                  <th className="px-4 py-3">Login Status</th>
-                  <th className="px-4 py-3">Last Active</th>
-                  <th className="px-4 py-3 text-right">Actions (Password / Status / Edit / Delete)</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {users
-                  .filter(
-                    (u) =>
-                      u.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                      u.fullName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                      u.role.toLowerCase().includes(searchQuery.toLowerCase())
-                  )
-                  .map((u) => (
-                    <tr key={u.id} className="hover:bg-gray-50/80 transition-colors">
-                      <td className="px-4 py-3">
-                        <div className="font-bold text-gray-900">{u.username}</div>
-                        <div className="text-[11px] text-gray-500">{u.fullName}</div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className="px-2 py-0.5 bg-blue-50 text-blue-800 border border-blue-200 rounded-full font-bold text-[10px]">
-                          {u.role}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-gray-600 font-mono">
-                        <div>{u.email}</div>
-                        <div className="text-[10px] text-gray-400">{u.phone}</div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <span
-                          className={`px-2 py-0.5 rounded-full font-bold text-[10px] ${
-                            u.status === 'Active'
-                              ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
-                              : 'bg-rose-100 text-rose-800 border border-rose-200'
-                          }`}
-                        >
-                          {u.status}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-gray-500 font-mono text-[11px]">
-                        {u.lastLogin || 'Never'}
-                      </td>
-                      <td className="px-4 py-3 text-right space-x-1.5 whitespace-nowrap">
-                        <button
-                          onClick={() => {
-                            onResetPassword(u.id);
-                            showToast(`Temporary password generated and sent to ${u.email}`);
-                          }}
-                          className="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 rounded-md font-semibold border border-amber-200 transition-colors cursor-pointer"
-                          title="Reset User Password"
-                        >
-                          Reset Pwd
-                        </button>
-                        <button
-                          onClick={() => {
-                            onToggleUserStatus(u.id);
-                            showToast(`User ${u.username} status toggled`);
-                          }}
-                          className={`px-2.5 py-1 rounded-md font-semibold border transition-colors cursor-pointer ${
-                            u.status === 'Active'
-                              ? 'bg-rose-50 hover:bg-rose-100 text-rose-700 border-rose-200'
-                              : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-200'
-                          }`}
-                          title="Toggle Active / Inactive"
-                        >
-                          {u.status === 'Active' ? 'Deactivate' : 'Activate'}
-                        </button>
-                        <button
-                          onClick={() => handleOpenUserModal(u)}
-                          className="px-2.5 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md font-semibold transition-colors cursor-pointer"
-                          title="Edit User Details"
-                        >
-                          Edit
-                        </button>
-                        <button
-                          onClick={() => {
-                            if (confirm(`Are you sure you want to delete user account "${u.username}"?`)) {
-                              onDeleteUser(u.id);
-                              showToast(`User account "${u.username}" deleted.`);
-                            }
-                          }}
-                          className="px-2.5 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded-md font-semibold transition-colors cursor-pointer"
-                          title="Delete User"
-                        >
-                          Delete
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* SECTION 2: CLASSES & SECTIONS */}
-      {activeTab === 'classes' && (
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-          <div className="p-4 border-b border-gray-100 flex items-center justify-between bg-gray-50/60">
+          <div className="grid grid-cols-2 gap-3">
             <div>
-              <h3 className="font-bold text-gray-900 text-sm">Class & Section Master Configuration</h3>
-              <p className="text-xs text-gray-500">Create academic classes, section divisions (A, B, C), room numbers, and class teachers.</p>
+              <label className="block font-semibold text-[#0B1F3A] mb-1">Email *</label>
+              <input
+                type="email"
+                required
+                value={userForm.email}
+                onChange={(e) => setUserForm({ ...userForm, email: e.target.value })}
+                className="w-full px-3 py-2 bg-[#F8FAFC] border border-slate-300 rounded-lg"
+              />
             </div>
-            <button
-              onClick={() => handleOpenClassModal()}
-              className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs cursor-pointer"
+            <div>
+              <label className="block font-semibold text-[#0B1F3A] mb-1">Phone</label>
+              <input
+                type="text"
+                value={userForm.phone}
+                onChange={(e) => setUserForm({ ...userForm, phone: e.target.value })}
+                placeholder="+91 98450 00000"
+                className="w-full px-3 py-2 bg-[#F8FAFC] border border-slate-300 rounded-lg"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block font-semibold text-[#0B1F3A] mb-1">Assigned Role (19 Roles) *</label>
+            <select
+              value={userForm.role}
+              onChange={(e) =>
+                setUserForm({ ...userForm, role: e.target.value as ErpRole })
+              }
+              className="w-full px-3 py-2 bg-[#F8FAFC] border border-slate-300 rounded-lg font-semibold"
             >
-              <Plus className="w-3.5 h-3.5" />
-              <span>Create Class</span>
+              {ALL_ERP_ROLES.map((r) => (
+                <option key={r.role} value={r.role}>
+                  {r.index}. {r.role} — ({r.scope} Scope)
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block font-semibold text-[#0B1F3A] mb-1">
+                School Isolation Scope
+              </label>
+              <select
+                value={userForm.schoolId}
+                onChange={(e) =>
+                  setUserForm({
+                    ...userForm,
+                    schoolId: e.target.value,
+                    campusId: 'all',
+                  })
+                }
+                className="w-full px-3 py-2 bg-[#F8FAFC] border border-slate-300 rounded-lg"
+              >
+                <option value="all">All Schools (Platform / Org)</option>
+                {schools.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.shortName}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block font-semibold text-[#0B1F3A] mb-1">
+                Campus Access Restriction
+              </label>
+              <select
+                value={userForm.campusId}
+                disabled={userForm.schoolId === 'all'}
+                onChange={(e) => setUserForm({ ...userForm, campusId: e.target.value })}
+                className="w-full px-3 py-2 bg-[#F8FAFC] border border-slate-300 rounded-lg disabled:opacity-50"
+              >
+                <option value="all">All Campuses in School</option>
+                {selectedFormSchool?.campuses.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+            <button
+              type="button"
+              onClick={() => setIsUserModalOpen(false)}
+              className="px-3.5 py-2 font-medium text-slate-600 hover:bg-slate-100 rounded-lg cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="px-4 py-2 font-semibold bg-[#0B1F3A] hover:bg-[#132E54] text-white rounded-lg cursor-pointer"
+            >
+              {editingUser ? 'Save Changes' : 'Create Account'}
             </button>
           </div>
+        </form>
+      </EnterpriseFormModal>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-gray-100/70 text-gray-700 font-semibold border-b border-gray-200">
-                <tr>
-                  <th className="px-4 py-3">Grade / Class Name</th>
-                  <th className="px-4 py-3">Curriculum Board</th>
-                  <th className="px-4 py-3">Sections</th>
-                  <th className="px-4 py-3">Room Number</th>
-                  <th className="px-4 py-3">Class Teacher Incharge</th>
-                  <th className="px-4 py-3 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {classes.map((cls) => (
-                  <tr key={cls.id} className="hover:bg-gray-50/80 transition-colors">
-                    <td className="px-4 py-3 font-bold text-gray-900 text-sm">{cls.gradeName}</td>
-                    <td className="px-4 py-3">
-                      <span className="px-2 py-0.5 bg-indigo-50 text-indigo-800 border border-indigo-200 rounded font-bold text-[10px]">
-                        {cls.curriculum}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 font-semibold text-emerald-700">
-                      {cls.sections.map((sec) => (
-                        <span key={sec} className="px-2 py-0.5 bg-emerald-50 border border-emerald-200 rounded mr-1 inline-block text-[11px]">
-                          {sec}
-                        </span>
-                      ))}
-                    </td>
-                    <td className="px-4 py-3 text-gray-600 font-mono">{cls.roomNo}</td>
-                    <td className="px-4 py-3 text-gray-800 font-medium">{cls.classTeacher || 'Not Assigned'}</td>
-                    <td className="px-4 py-3 text-right space-x-2">
-                      <button
-                        onClick={() => handleOpenClassModal(cls)}
-                        className="px-3 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md font-semibold transition-colors cursor-pointer"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        onClick={() => {
-                          if (confirm(`Delete class "${cls.gradeName}"?`)) {
-                            onDeleteClass(cls.id);
-                            showToast(`Class "${cls.gradeName}" deleted.`);
-                          }
-                        }}
-                        className="px-3 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded-md font-semibold transition-colors cursor-pointer"
-                      >
-                        Delete
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+      {/* CREATE / EDIT CLASS MODAL — WITH LIVE SEARCHABLE STAFF PICKER FOR CLASS TEACHER */}
+      <EnterpriseFormModal
+        isOpen={isClassModalOpen}
+        onClose={() => setIsClassModalOpen(false)}
+        title={editingClass ? 'Edit Class & Class Teacher' : 'Create New Class'}
+        subtitle="Search and select Class Teacher Incharge directly from active Staff records"
+      >
+        <form onSubmit={handleSaveClass} className="space-y-4 text-xs">
+          <div>
+            <label className="block font-semibold text-[#0B1F3A] mb-1">Grade Name *</label>
+            <input
+              type="text"
+              required
+              value={classForm.gradeName}
+              onChange={(e) => setClassForm({ ...classForm, gradeName: e.target.value })}
+              placeholder="e.g. PRE-KG, Class 1, Class 10"
+              className="w-full px-3 py-2 bg-[#F8FAFC] border border-slate-300 rounded-lg focus:outline-none focus:border-[#0B1F3A] focus:bg-white"
+            />
           </div>
-        </div>
-      )}
 
-      {/* SECTION 3: SUBJECTS MASTER */}
-      {activeTab === 'subjects' && (
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-          <div className="p-4 border-b border-gray-100 flex items-center justify-between bg-gray-50/60">
+          <div className="grid grid-cols-2 gap-3">
             <div>
-              <h3 className="font-bold text-gray-900 text-sm">Subject Curriculum Master</h3>
-              <p className="text-xs text-gray-500">Define core, elective, and co-scholastic subjects with subject codes and maximum marks.</p>
+              <label className="block font-semibold text-[#0B1F3A] mb-1">Curriculum Board</label>
+              <select
+                value={classForm.curriculum}
+                onChange={(e) =>
+                  setClassForm({
+                    ...classForm,
+                    curriculum: e.target.value as SchoolClass['curriculum'],
+                  })
+                }
+                className="w-full px-3 py-2 bg-[#F8FAFC] border border-slate-300 rounded-lg"
+              >
+                <option value="CBSE">CBSE</option>
+                <option value="ICSE">ICSE</option>
+                <option value="IB">IB</option>
+                <option value="Cambridge IGCSE">Cambridge IGCSE</option>
+                <option value="State Board">State Board</option>
+                <option value="Matriculation">Matriculation</option>
+              </select>
             </div>
-            <button
-              onClick={() => handleOpenSubjectModal()}
-              className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs cursor-pointer"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>Create Subject</span>
-            </button>
-          </div>
-
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-gray-100/70 text-gray-700 font-semibold border-b border-gray-200">
-                <tr>
-                  <th className="px-4 py-3">Subject Code</th>
-                  <th className="px-4 py-3">Subject Name</th>
-                  <th className="px-4 py-3">Type</th>
-                  <th className="px-4 py-3">Grade Level</th>
-                  <th className="px-4 py-3">Max Marks</th>
-                  <th className="px-4 py-3 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {subjects.map((sub) => (
-                  <tr key={sub.id} className="hover:bg-gray-50/80 transition-colors">
-                    <td className="px-4 py-3 font-mono font-bold text-gray-900">{sub.code}</td>
-                    <td className="px-4 py-3 font-semibold text-gray-800 text-sm">{sub.name}</td>
-                    <td className="px-4 py-3">
-                      <span className="px-2 py-0.5 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded font-bold text-[10px]">
-                        {sub.type}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-gray-600">{sub.gradeLevel}</td>
-                    <td className="px-4 py-3 font-mono font-bold text-gray-900">{sub.maxMarks}</td>
-                    <td className="px-4 py-3 text-right space-x-2">
-                      <button
-                        onClick={() => handleOpenSubjectModal(sub)}
-                        className="px-3 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md font-semibold transition-colors cursor-pointer"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        onClick={() => {
-                          if (confirm(`Delete subject "${sub.name}"?`)) {
-                            onDeleteSubject(sub.id);
-                            showToast(`Subject "${sub.name}" deleted.`);
-                          }
-                        }}
-                        className="px-3 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded-md font-semibold transition-colors cursor-pointer"
-                      >
-                        Delete
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* SECTION 4: TIMETABLE BUILDER */}
-      {activeTab === 'timetables' && (
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-          <div className="p-4 border-b border-gray-100 flex items-center justify-between bg-gray-50/60">
             <div>
-              <h3 className="font-bold text-gray-900 text-sm">Class & Section Timetable Builder</h3>
-              <p className="text-xs text-gray-500">Configure daily periods, time slots, assigned subjects, and teachers.</p>
+              <label className="block font-semibold text-[#0B1F3A] mb-1">Room Number</label>
+              <input
+                type="text"
+                value={classForm.roomNo}
+                onChange={(e) => setClassForm({ ...classForm, roomNo: e.target.value })}
+                placeholder="Block A - Room 104"
+                className="w-full px-3 py-2 bg-[#F8FAFC] border border-slate-300 rounded-lg"
+              />
             </div>
-            <button
-              onClick={() => handleOpenTimetableModal()}
-              className="px-3.5 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs cursor-pointer"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>Schedule Period</span>
-            </button>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-gray-100/70 text-gray-700 font-semibold border-b border-gray-200">
-                <tr>
-                  <th className="px-4 py-3">Grade & Section</th>
-                  <th className="px-4 py-3">Day</th>
-                  <th className="px-4 py-3">Period</th>
-                  <th className="px-4 py-3">Time Slot</th>
-                  <th className="px-4 py-3">Subject</th>
-                  <th className="px-4 py-3">Assigned Teacher</th>
-                  <th className="px-4 py-3 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {timetables.map((t) => (
-                  <tr key={t.id} className="hover:bg-gray-50/80 transition-colors">
-                    <td className="px-4 py-3 font-bold text-gray-900">
-                      {t.grade} - Sec {t.section}
-                    </td>
-                    <td className="px-4 py-3 font-semibold text-purple-700">{t.day}</td>
-                    <td className="px-4 py-3 font-mono font-bold">Period {t.periodNo}</td>
-                    <td className="px-4 py-3 text-gray-600 font-mono">{t.timeSlot}</td>
-                    <td className="px-4 py-3 font-semibold text-gray-900">{t.subjectName}</td>
-                    <td className="px-4 py-3 text-gray-700">{t.teacherName}</td>
-                    <td className="px-4 py-3 text-right space-x-2">
-                      <button
-                        onClick={() => handleOpenTimetableModal(t)}
-                        className="px-3 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md font-semibold transition-colors cursor-pointer"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        onClick={() => {
-                          if (confirm(`Delete timetable period ${t.periodNo} (${t.subjectName})?`)) {
-                            onDeleteTimetable(t.id);
-                            showToast('Timetable period removed.');
-                          }
-                        }}
-                        className="px-3 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded-md font-semibold transition-colors cursor-pointer"
-                      >
-                        Delete
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div>
+            <label className="block font-semibold text-[#0B1F3A] mb-1">
+              Sections (comma separated) *
+            </label>
+            <input
+              type="text"
+              required
+              value={classForm.sectionsStr}
+              onChange={(e) => setClassForm({ ...classForm, sectionsStr: e.target.value })}
+              placeholder="A, B, C"
+              className="w-full px-3 py-2 bg-[#F8FAFC] border border-slate-300 rounded-lg"
+            />
           </div>
-        </div>
-      )}
 
-      {/* --- MODALS --- */}
-
-      {/* 1. User Account Modal */}
-      {isUserModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-5 animate-in zoom-in-95 duration-150">
-            <div className="flex items-center justify-between border-b border-gray-100 pb-3">
-              <h3 className="font-bold text-gray-900 text-base">
-                {editingUser ? 'Edit User Account & Login' : 'Create New User Account'}
-              </h3>
-              <button onClick={() => setIsUserModalOpen(false)} className="text-gray-400 hover:text-gray-700 cursor-pointer">
-                <X className="w-5 h-5" />
-              </button>
+          {/* LIVE SEARCHABLE STAFF SELECTOR FOR CLASS TEACHER INCHARGE */}
+          <div className="relative">
+            <div className="flex items-center justify-between mb-1">
+              <label className="block font-semibold text-[#0B1F3A]">
+                Class Teacher Incharge (Search Staff Directory)
+              </label>
+              <span className="text-[10.5px] text-slate-500">
+                {activeStaffPool.length} active staff available
+              </span>
             </div>
 
-            <form onSubmit={handleSaveUser} className="space-y-4 text-xs">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="font-semibold text-gray-700 block mb-1">Username</label>
-                  <input
-                    type="text"
-                    required
-                    value={userForm.username}
-                    onChange={(e) => setUserForm({ ...userForm, username: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none"
-                    placeholder="e.g. jain_teacher"
-                  />
-                </div>
-                <div>
-                  <label className="font-semibold text-gray-700 block mb-1">Full Name</label>
-                  <input
-                    type="text"
-                    required
-                    value={userForm.fullName}
-                    onChange={(e) => setUserForm({ ...userForm, fullName: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none"
-                    placeholder="e.g. Prof. Arvind Jain"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="font-semibold text-gray-700 block mb-1">Email Address</label>
-                  <input
-                    type="email"
-                    required
-                    value={userForm.email}
-                    onChange={(e) => setUserForm({ ...userForm, email: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none"
-                    placeholder="arvind.j@learner.edu.in"
-                  />
-                </div>
-                <div>
-                  <label className="font-semibold text-gray-700 block mb-1">Mobile Phone</label>
-                  <input
-                    type="text"
-                    required
-                    value={userForm.phone}
-                    onChange={(e) => setUserForm({ ...userForm, phone: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none"
-                    placeholder="+91 98450 12345"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="font-semibold text-gray-700 block mb-1">Security Role</label>
-                  <select
-                    value={userForm.role}
-                    onChange={(e) => setUserForm({ ...userForm, role: e.target.value as any })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none bg-white"
-                  >
-                    <option value="Super Admin">Super Admin</option>
-                    <option value="Principal">Principal</option>
-                    <option value="Teacher">Teacher</option>
-                    <option value="Accountant">Accountant</option>
-                    <option value="Transport Staff">Transport Staff</option>
-                    <option value="Parent">Parent</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="font-semibold text-gray-700 block mb-1">Login Status</label>
-                  <select
-                    value={userForm.status}
-                    onChange={(e) => setUserForm({ ...userForm, status: e.target.value as any })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none bg-white"
-                  >
-                    <option value="Active">Active</option>
-                    <option value="Inactive">Inactive</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="pt-3 border-t border-gray-100 flex items-center justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setIsUserModalOpen(false)}
-                  className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg font-semibold"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold shadow-sm"
-                >
-                  {editingUser ? 'Save Changes' : 'Create User Login'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* 2. Class & Section Modal */}
-      {isClassModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-5 animate-in zoom-in-95 duration-150">
-            <div className="flex items-center justify-between border-b border-gray-100 pb-3">
-              <h3 className="font-bold text-gray-900 text-base">
-                {editingClass ? 'Edit Class & Sections' : 'Create New Class'}
-              </h3>
-              <button onClick={() => setIsClassModalOpen(false)} className="text-gray-400 hover:text-gray-700 cursor-pointer">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleSaveClass} className="space-y-4 text-xs">
-              <div>
-                <label className="font-semibold text-gray-700 block mb-1">Grade Name</label>
-                <input
-                  type="text"
-                  required
-                  value={classForm.gradeName}
-                  onChange={(e) => setClassForm({ ...classForm, gradeName: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none"
-                  placeholder="e.g. Class 10 or Grade 8"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="font-semibold text-gray-700 block mb-1">Curriculum Board</label>
-                  <select
-                    value={classForm.curriculum}
-                    onChange={(e) => setClassForm({ ...classForm, curriculum: e.target.value as any })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none bg-white"
-                  >
-                    <option value="CBSE">CBSE</option>
-                    <option value="State Board">State Board</option>
-                    <option value="Matriculation">Matriculation</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="font-semibold text-gray-700 block mb-1">Room Number</label>
-                  <input
-                    type="text"
-                    required
-                    value={classForm.roomNo}
-                    onChange={(e) => setClassForm({ ...classForm, roomNo: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none"
-                    placeholder="Block A - Room 104"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="font-semibold text-gray-700 block mb-1">Sections (comma separated)</label>
-                <input
-                  type="text"
-                  required
-                  value={classForm.sectionsStr}
-                  onChange={(e) => setClassForm({ ...classForm, sectionsStr: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none"
-                  placeholder="A, B, C"
-                />
-              </div>
-
-              <div>
-                <label className="font-semibold text-gray-700 block mb-1">Class Teacher Incharge</label>
-                <input
-                  type="text"
-                  value={classForm.classTeacher}
-                  onChange={(e) => setClassForm({ ...classForm, classTeacher: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none"
-                  placeholder="e.g. Ms. Priyanka Sen"
-                />
-              </div>
-
-              <div className="pt-3 border-t border-gray-100 flex items-center justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setIsClassModalOpen(false)}
-                  className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg font-semibold"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-bold shadow-sm"
-                >
-                  {editingClass ? 'Save Class' : 'Create Class'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* 3. Subject Modal */}
-      {isSubjectModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-5 animate-in zoom-in-95 duration-150">
-            <div className="flex items-center justify-between border-b border-gray-100 pb-3">
-              <h3 className="font-bold text-gray-900 text-base">
-                {editingSubject ? 'Edit Subject' : 'Create New Subject'}
-              </h3>
-              <button onClick={() => setIsSubjectModalOpen(false)} className="text-gray-400 hover:text-gray-700 cursor-pointer">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleSaveSubject} className="space-y-4 text-xs">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="font-semibold text-gray-700 block mb-1">Subject Code</label>
-                  <input
-                    type="text"
-                    required
-                    value={subjectForm.code}
-                    onChange={(e) => setSubjectForm({ ...subjectForm, code: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none uppercase font-mono"
-                    placeholder="PHY101"
-                  />
-                </div>
-                <div>
-                  <label className="font-semibold text-gray-700 block mb-1">Grade Level</label>
-                  <select
-                    required
-                    value={subjectForm.gradeLevel}
-                    onChange={(e) => setSubjectForm({ ...subjectForm, gradeLevel: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none bg-white font-semibold"
-                  >
-                    {classes.map((cls) => (
-                      <option key={cls.id} value={cls.gradeName}>
-                        {cls.gradeName} ({cls.curriculum})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label className="font-semibold text-gray-700 block mb-1">Subject Name</label>
-                <input
-                  type="text"
-                  required
-                  value={subjectForm.name}
-                  onChange={(e) => setSubjectForm({ ...subjectForm, name: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none"
-                  placeholder="Advanced Physics & Optics"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="font-semibold text-gray-700 block mb-1">Subject Type</label>
-                  <select
-                    value={subjectForm.type}
-                    onChange={(e) => setSubjectForm({ ...subjectForm, type: e.target.value as any })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none bg-white"
-                  >
-                    <option value="Core">Core</option>
-                    <option value="Elective">Elective</option>
-                    <option value="Co-Scholastic">Co-Scholastic</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="font-semibold text-gray-700 block mb-1">Maximum Marks</label>
-                  <input
-                    type="number"
-                    required
-                    value={subjectForm.maxMarks}
-                    onChange={(e) => setSubjectForm({ ...subjectForm, maxMarks: Number(e.target.value) })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none font-mono"
-                  />
-                </div>
-              </div>
-
-              <div className="pt-3 border-t border-gray-100 flex items-center justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setIsSubjectModalOpen(false)}
-                  className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg font-semibold"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold shadow-sm"
-                >
-                  {editingSubject ? 'Save Subject' : 'Create Subject'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* 4. Timetable Modal */}
-      {isTimetableModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-5 animate-in zoom-in-95 duration-150">
-            <div className="flex items-center justify-between border-b border-gray-100 pb-3">
-              <h3 className="font-bold text-gray-900 text-base">
-                {editingTimetable ? 'Edit Timetable Period' : 'Schedule Timetable Period'}
-              </h3>
-              <button onClick={() => setIsTimetableModalOpen(false)} className="text-gray-400 hover:text-gray-700 cursor-pointer">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleSaveTimetable} className="space-y-4 text-xs">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="font-semibold text-gray-700 block mb-1">Grade / Class</label>
-                  <select
-                    required
-                    value={timetableForm.grade}
-                    onChange={(e) => {
-                      const selectedGradeName = e.target.value;
-                      const matchedClass = classes.find(c => c.gradeName === selectedGradeName);
-                      const defaultSection = matchedClass && matchedClass.sections.length > 0 ? matchedClass.sections[0] : 'A';
-                      setTimetableForm({ ...timetableForm, grade: selectedGradeName, section: defaultSection });
-                    }}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none bg-white font-semibold"
-                  >
-                    {classes.map((cls) => (
-                      <option key={cls.id} value={cls.gradeName}>
-                        {cls.gradeName} ({cls.curriculum})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="font-semibold text-gray-700 block mb-1">Section</label>
-                  <select
-                    required
-                    value={timetableForm.section}
-                    onChange={(e) => setTimetableForm({ ...timetableForm, section: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none bg-white font-semibold"
-                  >
+            {classForm.classTeacher && (
+              <div className="mb-2 px-3 py-2 rounded-lg bg-[#0B1F3A]/5 border border-[#0B1F3A]/20 flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  <UserCheck className="w-4 h-4 text-emerald-700 shrink-0" />
+                  <div className="min-w-0">
+                    <p className="font-bold text-[#0B1F3A] truncate">
+                      {classForm.classTeacher}
+                    </p>
                     {(() => {
-                      const matchedClass = classes.find(c => c.gradeName === timetableForm.grade);
-                      const sections = matchedClass ? matchedClass.sections : ['A', 'B', 'C'];
-                      return sections.map((sec) => (
-                        <option key={sec} value={sec}>
-                          Section {sec}
-                        </option>
-                      ));
+                      const st = staffList.find((s) => s.name === classForm.classTeacher);
+                      return st ? (
+                        <p className="text-[10.5px] text-slate-500 truncate">
+                          {st.empId} · {st.designation} · {st.department}
+                        </p>
+                      ) : null;
                     })()}
-                  </select>
+                  </div>
                 </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="font-semibold text-gray-700 block mb-1">Day of Week</label>
-                  <select
-                    value={timetableForm.day}
-                    onChange={(e) => setTimetableForm({ ...timetableForm, day: e.target.value as any })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none bg-white"
-                  >
-                    <option value="Monday">Monday</option>
-                    <option value="Tuesday">Tuesday</option>
-                    <option value="Wednesday">Wednesday</option>
-                    <option value="Thursday">Thursday</option>
-                    <option value="Friday">Friday</option>
-                    <option value="Saturday">Saturday</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="font-semibold text-gray-700 block mb-1">Period Number</label>
-                  <input
-                    type="number"
-                    min="1"
-                    max="8"
-                    required
-                    value={timetableForm.periodNo}
-                    onChange={(e) => setTimetableForm({ ...timetableForm, periodNo: Number(e.target.value) })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none font-mono"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="font-semibold text-gray-700 block mb-1">Time Slot</label>
-                <input
-                  type="text"
-                  required
-                  value={timetableForm.timeSlot}
-                  onChange={(e) => setTimetableForm({ ...timetableForm, timeSlot: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none font-mono"
-                  placeholder="09:00 AM - 09:45 AM"
-                />
-              </div>
-
-              <div>
-                <label className="font-semibold text-gray-700 block mb-1">Subject Name</label>
-                <input
-                  type="text"
-                  required
-                  value={timetableForm.subjectName}
-                  onChange={(e) => setTimetableForm({ ...timetableForm, subjectName: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none"
-                  placeholder="Mathematics Standard"
-                />
-              </div>
-
-              <div>
-                <label className="font-semibold text-gray-700 block mb-1">Assigned Teacher</label>
-                <input
-                  type="text"
-                  required
-                  value={timetableForm.teacherName}
-                  onChange={(e) => setTimetableForm({ ...timetableForm, teacherName: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none"
-                  placeholder="Malini Swaminathan"
-                />
-              </div>
-
-              <div className="pt-3 border-t border-gray-100 flex items-center justify-end gap-2">
                 <button
                   type="button"
-                  onClick={() => setIsTimetableModalOpen(false)}
-                  className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg font-semibold"
+                  onClick={() => {
+                    setClassForm((prev) => ({ ...prev, classTeacher: '' }));
+                    setStaffSearchQuery('');
+                    setIsStaffDropdownOpen(true);
+                  }}
+                  className="text-[11px] font-semibold text-rose-600 hover:underline shrink-0 cursor-pointer"
                 >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-bold shadow-sm"
-                >
-                  {editingTimetable ? 'Save Period' : 'Schedule Period'}
+                  Change
                 </button>
               </div>
-            </form>
+            )}
+
+            <div className="relative">
+              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <input
+                type="text"
+                value={staffSearchQuery}
+                onFocus={() => setIsStaffDropdownOpen(true)}
+                onChange={(e) => {
+                  setStaffSearchQuery(e.target.value);
+                  setIsStaffDropdownOpen(true);
+                }}
+                placeholder="Type staff name, Emp ID, department, or subject to search..."
+                className="w-full pl-9 pr-8 py-2 bg-[#F8FAFC] border border-slate-300 rounded-lg focus:outline-none focus:border-[#0B1F3A] focus:bg-white"
+              />
+              {staffSearchQuery && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStaffSearchQuery('');
+                    setClassForm((prev) => ({ ...prev, classTeacher: '' }));
+                    setIsStaffDropdownOpen(true);
+                  }}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 cursor-pointer"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+
+            {isStaffDropdownOpen && (
+              <div className="mt-1.5 max-h-48 overflow-y-auto bg-white border border-slate-200 rounded-xl shadow-xl divide-y divide-slate-100">
+                {matchingClassTeacherStaff.length === 0 ? (
+                  <div className="p-3 text-center text-[11px] text-slate-500">
+                    No active staff matching &ldquo;{staffSearchQuery}&rdquo;.
+                  </div>
+                ) : (
+                  matchingClassTeacherStaff.map((staff) => {
+                    const isSelected = classForm.classTeacher === staff.name;
+                    return (
+                      <button
+                        key={staff.id}
+                        type="button"
+                        onClick={() => handleSelectClassTeacher(staff)}
+                        className={`w-full text-left px-3 py-2.5 flex items-center justify-between gap-2 transition-colors cursor-pointer ${
+                          isSelected
+                            ? 'bg-[#0B1F3A]/8'
+                            : 'hover:bg-[#F8FAFC]'
+                        }`}
+                      >
+                        <div className="min-w-0">
+                          <p className="font-semibold text-[#0B1F3A] truncate">
+                            {staff.name}
+                          </p>
+                          <p className="text-[10.5px] text-slate-500 truncate">
+                            {staff.empId} · {staff.designation} · {staff.department}
+                          </p>
+                        </div>
+                        <span className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 text-[10px] font-semibold shrink-0">
+                          {isSelected ? 'Selected' : 'Assign'}
+                        </span>
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+            )}
           </div>
-        </div>
-      )}
+
+          <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+            <button
+              type="button"
+              onClick={() => setIsClassModalOpen(false)}
+              className="px-3.5 py-2 font-medium text-slate-600 hover:bg-slate-100 rounded-lg cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="px-4 py-2 font-semibold bg-[#0B1F3A] hover:bg-[#132E54] text-white rounded-lg cursor-pointer"
+            >
+              {editingClass ? 'Save Class' : 'Create Class'}
+            </button>
+          </div>
+        </form>
+      </EnterpriseFormModal>
+
+      {/* SUBJECT MODAL */}
+      <EnterpriseFormModal
+        isOpen={isSubjectModalOpen}
+        onClose={() => setIsSubjectModalOpen(false)}
+        title={editingSubject ? 'Edit Subject' : 'Add Academic Subject'}
+      >
+        <form onSubmit={handleSaveSubject} className="space-y-3.5 text-xs">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block font-semibold text-[#0B1F3A] mb-1">Subject Code *</label>
+              <input
+                type="text"
+                required
+                value={subjectForm.code}
+                onChange={(e) => setSubjectForm({ ...subjectForm, code: e.target.value })}
+                placeholder="MAT101"
+                className="w-full px-3 py-2 bg-[#F8FAFC] border border-slate-300 rounded-lg font-mono"
+              />
+            </div>
+            <div>
+              <label className="block font-semibold text-[#0B1F3A] mb-1">Max Marks</label>
+              <input
+                type="number"
+                value={subjectForm.maxMarks}
+                onChange={(e) =>
+                  setSubjectForm({ ...subjectForm, maxMarks: Number(e.target.value) || 100 })
+                }
+                className="w-full px-3 py-2 bg-[#F8FAFC] border border-slate-300 rounded-lg font-mono"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="block font-semibold text-[#0B1F3A] mb-1">Subject Name *</label>
+            <input
+              type="text"
+              required
+              value={subjectForm.name}
+              onChange={(e) => setSubjectForm({ ...subjectForm, name: e.target.value })}
+              placeholder="Mathematics (Standard)"
+              className="w-full px-3 py-2 bg-[#F8FAFC] border border-slate-300 rounded-lg"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block font-semibold text-[#0B1F3A] mb-1">Type</label>
+              <select
+                value={subjectForm.type}
+                onChange={(e) =>
+                  setSubjectForm({
+                    ...subjectForm,
+                    type: e.target.value as SchoolSubject['type'],
+                  })
+                }
+                className="w-full px-3 py-2 bg-[#F8FAFC] border border-slate-300 rounded-lg"
+              >
+                <option value="Core">Core</option>
+                <option value="Elective">Elective</option>
+                <option value="Co-Scholastic">Co-Scholastic</option>
+              </select>
+            </div>
+            <div>
+              <label className="block font-semibold text-[#0B1F3A] mb-1">Grade Level</label>
+              <input
+                type="text"
+                value={subjectForm.gradeLevel}
+                onChange={(e) =>
+                  setSubjectForm({ ...subjectForm, gradeLevel: e.target.value })
+                }
+                className="w-full px-3 py-2 bg-[#F8FAFC] border border-slate-300 rounded-lg"
+              />
+            </div>
+          </div>
+          <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+            <button
+              type="button"
+              onClick={() => setIsSubjectModalOpen(false)}
+              className="px-3.5 py-2 font-medium text-slate-600 hover:bg-slate-100 rounded-lg cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="px-4 py-2 font-semibold bg-[#0B1F3A] hover:bg-[#132E54] text-white rounded-lg cursor-pointer"
+            >
+              Save Subject
+            </button>
+          </div>
+        </form>
+      </EnterpriseFormModal>
+
+      {/* TIMETABLE MODAL WITH SEARCHABLE STAFF PICKER */}
+      <EnterpriseFormModal
+        isOpen={isTimetableModalOpen}
+        onClose={() => setIsTimetableModalOpen(false)}
+        title={editingTimetable ? 'Edit Timetable Slot' : 'Add Timetable Period'}
+      >
+        <form onSubmit={handleSaveTimetable} className="space-y-3.5 text-xs">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block font-semibold text-[#0B1F3A] mb-1">Grade *</label>
+              <input
+                type="text"
+                required
+                value={timetableForm.grade}
+                onChange={(e) => setTimetableForm({ ...timetableForm, grade: e.target.value })}
+                className="w-full px-3 py-2 bg-[#F8FAFC] border border-slate-300 rounded-lg"
+              />
+            </div>
+            <div>
+              <label className="block font-semibold text-[#0B1F3A] mb-1">Section *</label>
+              <input
+                type="text"
+                required
+                value={timetableForm.section}
+                onChange={(e) =>
+                  setTimetableForm({ ...timetableForm, section: e.target.value })
+                }
+                className="w-full px-3 py-2 bg-[#F8FAFC] border border-slate-300 rounded-lg"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block font-semibold text-[#0B1F3A] mb-1">Day</label>
+              <select
+                value={timetableForm.day}
+                onChange={(e) =>
+                  setTimetableForm({
+                    ...timetableForm,
+                    day: e.target.value as TimetableEntry['day'],
+                  })
+                }
+                className="w-full px-3 py-2 bg-[#F8FAFC] border border-slate-300 rounded-lg"
+              >
+                {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'].map((d) => (
+                  <option key={d} value={d}>
+                    {d}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block font-semibold text-[#0B1F3A] mb-1">Time Slot</label>
+              <input
+                type="text"
+                value={timetableForm.timeSlot}
+                onChange={(e) =>
+                  setTimetableForm({ ...timetableForm, timeSlot: e.target.value })
+                }
+                className="w-full px-3 py-2 bg-[#F8FAFC] border border-slate-300 rounded-lg font-mono"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block font-semibold text-[#0B1F3A] mb-1">Subject *</label>
+            <input
+              type="text"
+              required
+              value={timetableForm.subjectName}
+              onChange={(e) =>
+                setTimetableForm({ ...timetableForm, subjectName: e.target.value })
+              }
+              className="w-full px-3 py-2 bg-[#F8FAFC] border border-slate-300 rounded-lg"
+            />
+          </div>
+
+          <div className="relative">
+            <label className="block font-semibold text-[#0B1F3A] mb-1">
+              Assign Faculty (Search Staff)
+            </label>
+            <input
+              type="text"
+              value={ttTeacherSearch}
+              onFocus={() => setIsTtTeacherDropdownOpen(true)}
+              onChange={(e) => {
+                setTtTeacherSearch(e.target.value);
+                setTimetableForm((prev) => ({ ...prev, teacherName: e.target.value }));
+                setIsTtTeacherDropdownOpen(true);
+              }}
+              placeholder="Search faculty name or department..."
+              className="w-full px-3 py-2 bg-[#F8FAFC] border border-slate-300 rounded-lg"
+            />
+            {isTtTeacherDropdownOpen && matchingTimetableStaff.length > 0 && (
+              <div className="mt-1 max-h-40 overflow-y-auto bg-white border border-slate-200 rounded-lg shadow-lg divide-y divide-slate-100">
+                {matchingTimetableStaff.map((st) => (
+                  <button
+                    key={st.id}
+                    type="button"
+                    onClick={() => {
+                      setTimetableForm((prev) => ({ ...prev, teacherName: st.name }));
+                      setTtTeacherSearch(st.name);
+                      setIsTtTeacherDropdownOpen(false);
+                    }}
+                    className="w-full text-left px-3 py-2 hover:bg-[#F8FAFC] flex items-center justify-between cursor-pointer"
+                  >
+                    <span className="font-semibold text-[#0B1F3A]">{st.name}</span>
+                    <span className="text-[10.5px] text-slate-500">{st.department}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+            <button
+              type="button"
+              onClick={() => setIsTimetableModalOpen(false)}
+              className="px-3.5 py-2 font-medium text-slate-600 hover:bg-slate-100 rounded-lg cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="px-4 py-2 font-semibold bg-[#0B1F3A] hover:bg-[#132E54] text-white rounded-lg cursor-pointer"
+            >
+              Save Slot
+            </button>
+          </div>
+        </form>
+      </EnterpriseFormModal>
+
+      {/* BULK EXCEL/CSV IMPORT MODAL */}
+      <AdminBulkImportModal
+        isOpen={Boolean(bulkImportEntity)}
+        entity={bulkImportEntity || 'users'}
+        onClose={() => setBulkImportEntity(null)}
+        schools={schools}
+        staffList={staffList}
+        defaultSchoolId={selectedSchoolId}
+        defaultCampusId={selectedCampusId}
+        existingUsers={users}
+        existingClasses={classes}
+        existingSubjects={subjects}
+        existingTimetables={timetables}
+        onCommitImport={(entity, result, updateExisting) => {
+          let created = 0;
+          let updated = 0;
+          if (onBulkImport) {
+            const summary = onBulkImport(entity, result, updateExisting);
+            created = summary.created;
+            updated = summary.updated;
+          } else {
+            result.rows.forEach((row) => {
+              if (!row.payload || row.action === 'error') return;
+              if (row.action === 'create') {
+                if (entity === 'users') onAddUser(row.payload as Omit<SystemUser, 'id'>);
+                if (entity === 'classes') onAddClass(row.payload as Omit<SchoolClass, 'id'>);
+                if (entity === 'subjects') onAddSubject(row.payload as Omit<SchoolSubject, 'id'>);
+                if (entity === 'timetables') onAddTimetable(row.payload as Omit<TimetableEntry, 'id'>);
+                created += 1;
+              } else if (row.action === 'update' && updateExisting && row.existingId) {
+                if (entity === 'users')
+                  onUpdateUser({ ...(row.payload as Omit<SystemUser, 'id'>), id: row.existingId });
+                if (entity === 'classes')
+                  onUpdateClass({ ...(row.payload as Omit<SchoolClass, 'id'>), id: row.existingId });
+                if (entity === 'subjects')
+                  onUpdateSubject({ ...(row.payload as Omit<SchoolSubject, 'id'>), id: row.existingId });
+                if (entity === 'timetables')
+                  onUpdateTimetable({ ...(row.payload as Omit<TimetableEntry, 'id'>), id: row.existingId });
+                updated += 1;
+              }
+            });
+          }
+          showToast(
+            `Bulk import completed for ${ADMIN_IMPORT_SCHEMAS[entity].label}: ${created} created, ${updated} updated.`
+          );
+        }}
+      />
+
+      {/* CONFIRMATION DIALOG */}
+      <EnterpriseConfirmDialog
+        isOpen={Boolean(confirmState?.open)}
+        title={confirmState?.title || ''}
+        message={confirmState?.message || ''}
+        confirmLabel={confirmState?.confirmLabel || 'Confirm'}
+        tone={confirmState?.tone || 'danger'}
+        onCancel={() => setConfirmState(null)}
+        onConfirm={() => {
+          confirmState?.action();
+          setConfirmState(null);
+        }}
+      />
     </div>
   );
 };

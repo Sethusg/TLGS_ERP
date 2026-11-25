@@ -1,3 +1,5 @@
+import { EducationBoard } from '../types';
+
 export interface CampusOption {
   id: string;
   name: string;
@@ -15,9 +17,10 @@ export interface CampusOption {
 
 export interface SchoolOption {
   id: string;
+  organizationName: string;
   name: string;
   shortName: string;
-  board: 'CBSE' | 'ICSE' | 'IB';
+  board: 'CBSE' | 'ICSE' | 'IB' | 'Cambridge IGCSE' | 'State Board';
   affiliationNo: string;
   campuses: CampusOption[];
 }
@@ -25,13 +28,64 @@ export interface SchoolOption {
 export interface AcademicYearOption {
   id: string;
   label: string;
-  status: 'Active' | 'Archived';
+  startDate: string;
+  endDate: string;
+  status: 'Active' | 'Archived' | 'Upcoming';
   multiplier: number;
 }
+
+export const INITIAL_EDUCATION_BOARDS: EducationBoard[] = [
+  {
+    id: 'brd-cbse',
+    code: 'CBSE',
+    name: 'Central Board of Secondary Education',
+    affiliationBody: 'Ministry of Education, Govt. of India',
+    gradingScale: '9-Point CBSE Scale (A1–E)',
+    medium: 'English',
+    status: 'Active',
+  },
+  {
+    id: 'brd-icse',
+    code: 'ICSE',
+    name: 'Council for the Indian School Certificate Examinations',
+    affiliationBody: 'CISCE, New Delhi',
+    gradingScale: 'Percentage & 1–9 Grade Points',
+    medium: 'English',
+    status: 'Active',
+  },
+  {
+    id: 'brd-ib',
+    code: 'IB',
+    name: 'International Baccalaureate (PYP / MYP / DP)',
+    affiliationBody: 'IBO, Geneva',
+    gradingScale: '1–7 Criterion Scale (45 Max DP)',
+    medium: 'English / Bilingual',
+    status: 'Active',
+  },
+  {
+    id: 'brd-igcse',
+    code: 'IGCSE',
+    name: 'Cambridge Assessment International Education',
+    affiliationBody: 'University of Cambridge, UK',
+    gradingScale: 'A* to G Cambridge Scale',
+    medium: 'English',
+    status: 'Active',
+  },
+  {
+    id: 'brd-state',
+    code: 'STATE',
+    name: 'State Board of School Examinations',
+    affiliationBody: 'Department of School Education',
+    gradingScale: 'Percentage & Distinction Divisions',
+    medium: 'English / Regional',
+    status: 'Active',
+  },
+];
 
 export const SCHOOL_OPTIONS: SchoolOption[] = [
   {
     id: 'sch-leaders-cbse',
+    organizationName: 'The Leaders Group of Schools Trust',
     name: 'The Leaders Academy (CBSE)',
     shortName: 'Leaders Academy CBSE',
     board: 'CBSE',
@@ -83,6 +137,7 @@ export const SCHOOL_OPTIONS: SchoolOption[] = [
   },
   {
     id: 'sch-leaders-icse',
+    organizationName: 'The Leaders Group of Schools Trust',
     name: 'The Leaders International (ICSE)',
     shortName: 'Leaders Int. ICSE',
     board: 'ICSE',
@@ -120,6 +175,7 @@ export const SCHOOL_OPTIONS: SchoolOption[] = [
   },
   {
     id: 'sch-leaders-ib',
+    organizationName: 'Leaders Global Baccalaureate Foundation',
     name: 'The Leaders Global Academy (IB)',
     shortName: 'Leaders Global IB',
     board: 'IB',
@@ -155,12 +211,71 @@ export const SCHOOL_OPTIONS: SchoolOption[] = [
       },
     ],
   },
+  {
+    id: 'sch-leaders-igcse',
+    organizationName: 'Leaders Global Baccalaureate Foundation',
+    name: 'The Leaders Cambridge School (IGCSE)',
+    shortName: 'Leaders Cambridge IGCSE',
+    board: 'Cambridge IGCSE',
+    affiliationNo: 'IN-842-CAIE',
+    campuses: [
+      {
+        id: 'cmp-bengaluru-east',
+        name: 'Whitefield Cambridge Campus',
+        code: 'BLR-01',
+        city: 'Bengaluru',
+        studentCount: 520,
+        staffCount: 64,
+        attendanceRate: 95.4,
+        staffAttendanceRate: 97.8,
+        feeCollectedLakhs: 174.0,
+        feeTargetLakhs: 192.0,
+        pendingAdmissions: 10,
+        appUsers: 584,
+      },
+      {
+        id: 'cmp-sarjapur',
+        name: 'Sarjapur Innovation Campus',
+        code: 'BLR-02',
+        city: 'Bengaluru',
+        studentCount: 395,
+        staffCount: 49,
+        attendanceRate: 94.3,
+        staffAttendanceRate: 96.9,
+        feeCollectedLakhs: 128.5,
+        feeTargetLakhs: 145.0,
+        pendingAdmissions: 8,
+        appUsers: 440,
+      },
+    ],
+  },
 ];
 
 export const ACADEMIC_YEAR_OPTIONS: AcademicYearOption[] = [
-  { id: '2026-2027', label: 'AY 2026–2027', status: 'Active', multiplier: 1.0 },
-  { id: '2025-2026', label: 'AY 2025–2026', status: 'Archived', multiplier: 0.94 },
-  { id: '2024-2025', label: 'AY 2024–2025', status: 'Archived', multiplier: 0.88 },
+  {
+    id: '2026-2027',
+    label: 'AY 2026–2027',
+    startDate: '2026-04-01',
+    endDate: '2027-03-31',
+    status: 'Active',
+    multiplier: 1.0,
+  },
+  {
+    id: '2025-2026',
+    label: 'AY 2025–2026',
+    startDate: '2025-04-01',
+    endDate: '2026-03-31',
+    status: 'Archived',
+    multiplier: 0.94,
+  },
+  {
+    id: '2024-2025',
+    label: 'AY 2024–2025',
+    startDate: '2024-04-01',
+    endDate: '2025-03-31',
+    status: 'Archived',
+    multiplier: 0.88,
+  },
 ];
 
 export interface InstitutionalMetrics {
@@ -168,6 +283,7 @@ export interface InstitutionalMetrics {
   board: string;
   affiliationNo: string;
   campusLabel: string;
+  schoolCount: number;
   campusCount: number;
   academicYearLabel: string;
   students: number;
@@ -186,18 +302,41 @@ export interface InstitutionalMetrics {
 export function getInstitutionalMetrics(
   schoolId: string,
   campusId: string,
-  academicYearId: string
+  academicYearId: string,
+  schoolsList: SchoolOption[] = SCHOOL_OPTIONS,
+  yearsList: AcademicYearOption[] = ACADEMIC_YEAR_OPTIONS
 ): InstitutionalMetrics {
-  const school = SCHOOL_OPTIONS.find((s) => s.id === schoolId) || SCHOOL_OPTIONS[0];
-  const year = ACADEMIC_YEAR_OPTIONS.find((y) => y.id === academicYearId) || ACADEMIC_YEAR_OPTIONS[0];
+  const year = yearsList.find((y) => y.id === academicYearId) || yearsList[0];
   const m = year.multiplier;
+  const isAllSchools = schoolId === 'all';
 
-  const isAllCampuses = campusId === 'all';
-  const selectedCampuses = isAllCampuses
-    ? school.campuses
-    : school.campuses.filter((c) => c.id === campusId);
+  let activeList: CampusOption[] = [];
+  let schoolName = 'All Affiliated Schools (Centralized)';
+  let board = 'Multi-Board (CBSE · ICSE · IB · IGCSE)';
+  let affiliationNo = `${schoolsList.length} Accredited Schools`;
+  let campusLabel = '';
+  let schoolCount = schoolsList.length;
 
-  const activeList = selectedCampuses.length > 0 ? selectedCampuses : [school.campuses[0]];
+  if (isAllSchools) {
+    activeList = schoolsList.flatMap((s) => s.campuses);
+    campusLabel = `All Campuses (${activeList.length})`;
+  } else {
+    const school = schoolsList.find((s) => s.id === schoolId) || schoolsList[0];
+    schoolName = school.name;
+    board = school.board;
+    affiliationNo = school.affiliationNo;
+    schoolCount = 1;
+
+    const isAllCampuses = campusId === 'all';
+    const selectedCampuses = isAllCampuses
+      ? school.campuses
+      : school.campuses.filter((c) => c.id === campusId);
+
+    activeList = selectedCampuses.length > 0 ? selectedCampuses : [school.campuses[0]];
+    campusLabel = isAllCampuses
+      ? `All Campuses (${school.campuses.length})`
+      : activeList[0].name;
+  }
 
   const totalStudents = Math.round(
     activeList.reduce((acc, c) => acc + c.studentCount, 0) * m
@@ -210,12 +349,14 @@ export function getInstitutionalMetrics(
   );
   const avgAttendance = Number(
     (
-      activeList.reduce((acc, c) => acc + c.attendanceRate, 0) / activeList.length
+      activeList.reduce((acc, c) => acc + c.attendanceRate, 0) /
+      Math.max(1, activeList.length)
     ).toFixed(1)
   );
   const avgStaffAttendance = Number(
     (
-      activeList.reduce((acc, c) => acc + c.staffAttendanceRate, 0) / activeList.length
+      activeList.reduce((acc, c) => acc + c.staffAttendanceRate, 0) /
+      Math.max(1, activeList.length)
     ).toFixed(1)
   );
   const feeCollectedLakhs = Number(
@@ -229,7 +370,6 @@ export function getInstitutionalMetrics(
     Math.round(activeList.reduce((acc, c) => acc + c.pendingAdmissions, 0) * m)
   );
 
-  // Compute realistic enrollment breakdown by academic wing matching totalStudents
   const primaryTotal = Math.round(totalStudents * 0.31);
   const middleTotal = Math.round(totalStudents * 0.27);
   const secondaryTotal = Math.round(totalStudents * 0.24);
@@ -268,12 +408,11 @@ export function getInstitutionalMetrics(
   ];
 
   return {
-    schoolName: school.name,
-    board: school.board,
-    affiliationNo: school.affiliationNo,
-    campusLabel: isAllCampuses
-      ? `All Campuses (${school.campuses.length})`
-      : activeList[0].name,
+    schoolName,
+    board,
+    affiliationNo,
+    campusLabel,
+    schoolCount,
     campusCount: activeList.length,
     academicYearLabel: year.label,
     students: totalStudents,
@@ -288,4 +427,30 @@ export function getInstitutionalMetrics(
     monthlyFeeTrend,
     weeklyAttendanceTrend,
   };
+}
+
+export function getSchoolNameById(
+  schoolId: string,
+  schoolsList: SchoolOption[] = SCHOOL_OPTIONS
+): string {
+  if (schoolId === 'all') return 'All Schools (Platform)';
+  return schoolsList.find((s) => s.id === schoolId)?.shortName || schoolId;
+}
+
+export function getCampusNameById(
+  schoolId: string,
+  campusId: string,
+  schoolsList: SchoolOption[] = SCHOOL_OPTIONS
+): string {
+  if (campusId === 'all') return 'All Campuses';
+  const school = schoolsList.find((s) => s.id === schoolId);
+  if (school) {
+    const found = school.campuses.find((c) => c.id === campusId);
+    if (found) return found.name;
+  }
+  for (const s of schoolsList) {
+    const found = s.campuses.find((c) => c.id === campusId);
+    if (found) return found.name;
+  }
+  return campusId;
 }

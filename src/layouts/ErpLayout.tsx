@@ -1,5 +1,13 @@
 import React from 'react';
-import { NavSection, Student, Staff } from '../types';
+import {
+  ErpRole,
+  ManagedMainMenu,
+  MenuVisibilityMap,
+  NavSection,
+  RolePermissionMatrix,
+  Student,
+  Staff,
+} from '../types';
 import { SidebarNav } from '../components/SidebarNav';
 import { HeaderNav } from '../components/HeaderNav';
 import { NavAppearanceSettings } from '../components/Modals/NavAppearanceModal';
@@ -10,7 +18,11 @@ interface ErpLayoutProps {
   activeSubItem?: string;
   onSelectSection: (section: NavSection, subItem?: string) => void;
   onLogout: () => void;
-  userRole: string;
+  userRole: ErpRole;
+  onSwitchRole: (role: ErpRole) => void;
+  managedMenus: ManagedMainMenu[];
+  permissionMatrix: RolePermissionMatrix;
+  menuVisibility: MenuVisibilityMap;
   isSidebarCollapsed: boolean;
   onToggleSidebarCollapse: () => void;
   isMobileSidebarOpen: boolean;
@@ -38,6 +50,10 @@ export const ErpLayout: React.FC<ErpLayoutProps> = ({
   onSelectSection,
   onLogout,
   userRole,
+  onSwitchRole,
+  managedMenus,
+  permissionMatrix,
+  menuVisibility,
   isSidebarCollapsed,
   onToggleSidebarCollapse,
   isMobileSidebarOpen,
@@ -59,6 +75,7 @@ export const ErpLayout: React.FC<ErpLayoutProps> = ({
   children,
 }) => {
   const {
+    schools,
     selectedSchoolId,
     selectedCampusId,
     selectedAcademicYearId,
@@ -69,6 +86,10 @@ export const ErpLayout: React.FC<ErpLayoutProps> = ({
     setAcademicYear,
   } = useSchoolContext();
 
+  const activeSchoolShortName = activeSchool
+    ? activeSchool.shortName
+    : `All Schools (${schools.length})`;
+
   return (
     <div className="min-h-screen bg-[#F4F6F9] text-slate-900 flex antialiased selection:bg-[#D4AF37]/25 selection:text-[#0B1F3A]">
       <SidebarNav
@@ -76,13 +97,18 @@ export const ErpLayout: React.FC<ErpLayoutProps> = ({
         activeSubItem={activeSubItem}
         onSelectSection={onSelectSection}
         userRole={userRole}
+        managedMenus={managedMenus}
+        selectedSchoolId={selectedSchoolId}
+        selectedCampusId={selectedCampusId}
+        permissionMatrix={permissionMatrix}
+        menuVisibility={menuVisibility}
         isCollapsed={isSidebarCollapsed}
         onToggleCollapse={onToggleSidebarCollapse}
         isMobileOpen={isMobileSidebarOpen}
         onCloseMobile={onCloseMobileSidebar}
         navSettings={navSettings}
         onOpenAppearanceModal={onOpenAppearanceModal}
-        activeSchoolShortName={activeSchool.shortName}
+        activeSchoolShortName={activeSchoolShortName}
         activeCampusLabel={metrics.campusLabel}
       />
 
@@ -92,6 +118,10 @@ export const ErpLayout: React.FC<ErpLayoutProps> = ({
           onSelectSection={onSelectSection}
           onLogout={onLogout}
           userRole={userRole}
+          onSwitchRole={onSwitchRole}
+          managedMenus={managedMenus}
+          permissionMatrix={permissionMatrix}
+          menuVisibility={menuVisibility}
           selectedSchoolId={selectedSchoolId}
           onSchoolChange={setSchool}
           selectedCampusId={selectedCampusId}

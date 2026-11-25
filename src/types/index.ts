@@ -24,7 +24,144 @@ export type NavSection =
   | 'ASSET'
   | 'SUPPLIES'
   | 'ID_CARDS'
-  | 'CANTEEN';
+  | 'CANTEEN'
+  | 'CUSTOM_MENU';
+
+export type ErpRole =
+  | 'Super Administrator'
+  | 'Organization Administrator'
+  | 'School Administrator'
+  | 'Campus Administrator'
+  | 'Principal'
+  | 'Vice Principal'
+  | 'Academic Coordinator'
+  | 'Admission Officer'
+  | 'Accountant'
+  | 'HR Manager'
+  | 'Teacher'
+  | 'Class Teacher'
+  | 'Librarian'
+  | 'Transport Manager'
+  | 'Hostel Warden'
+  | 'Inventory Manager'
+  | 'Front Office Staff'
+  | 'Parent'
+  | 'Student';
+
+export type AccessScope = 'Platform' | 'Organization' | 'School' | 'Campus' | 'Personal';
+
+export interface CrudPermissionSet {
+  create: boolean;
+  read: boolean;
+  update: boolean;
+  delete: boolean;
+}
+
+export type RolePermissionMatrix = Record<ErpRole, Partial<Record<NavSection, CrudPermissionSet>>>;
+
+export type MenuVisibilityMap = Partial<Record<NavSection, boolean>>;
+
+export interface MenuOperationPermissions {
+  view: boolean;
+  add: boolean;
+  edit: boolean;
+  delete: boolean;
+  activate: boolean;
+  deactivate: boolean;
+}
+
+export type RoleMenuPermissionMap = Record<ErpRole, MenuOperationPermissions>;
+
+export type MenuIconName =
+  | 'LayoutDashboard'
+  | 'Building2'
+  | 'BookOpen'
+  | 'GraduationCap'
+  | 'Users'
+  | 'CalendarCheck'
+  | 'CreditCard'
+  | 'ClipboardCheck'
+  | 'Briefcase'
+  | 'Landmark'
+  | 'Library'
+  | 'Bus'
+  | 'BedDouble'
+  | 'Boxes'
+  | 'MessageSquare'
+  | 'BarChart3'
+  | 'ShieldCheck'
+  | 'FolderKanban'
+  | 'Award'
+  | 'Globe'
+  | 'Bell'
+  | 'FileText'
+  | 'Settings'
+  | 'Layers'
+  | 'HeartHandshake'
+  | 'Sparkles'
+  | 'Compass'
+  | 'Cpu';
+
+export interface ManagedSubMenu {
+  id: string;
+  parentId: string;
+  label: string;
+  description: string;
+  iconName: MenuIconName;
+  actionId: string;
+  targetSection?: NavSection;
+  order: number;
+  isActive: boolean;
+  isVisible: boolean;
+  isSystem?: boolean;
+  allowedRoles?: ErpRole[];
+  allowedSchoolIds?: string[];
+  allowedCampusIds?: string[];
+}
+
+export interface ManagedMainMenu {
+  id: string;
+  section: NavSection;
+  label: string;
+  shortLabel: string;
+  description: string;
+  iconName: MenuIconName;
+  order: number;
+  isActive: boolean;
+  isVisible: boolean;
+  isSystem?: boolean;
+  allowedOrganizations?: string[];
+  allowedRoles?: ErpRole[];
+  allowedSchoolIds?: string[];
+  allowedCampusIds?: string[];
+  subItems: ManagedSubMenu[];
+}
+
+export interface LoginHistoryEntry {
+  id: string;
+  userId: string;
+  username: string;
+  fullName: string;
+  role: ErpRole;
+  schoolId: string;
+  schoolName: string;
+  campusId: string;
+  campusName: string;
+  timestamp: string;
+  ipAddress: string;
+  device: string;
+  status: 'Success' | 'Failed' | 'Deactivated';
+}
+
+export interface EducationBoard {
+  id: string;
+  code: string;
+  name: string;
+  affiliationBody: string;
+  gradingScale: string;
+  medium: string;
+  status: 'Active' | 'Inactive';
+}
 
 export type SubMenuAction = {
   label: string;
@@ -34,6 +171,9 @@ export type SubMenuAction = {
 
 export interface Student {
   id: string;
+  schoolId?: string;
+  campusId?: string;
+  academicYearId?: string;
   admissionNo: string;
   rollNo: string;
   name: string;
@@ -76,6 +216,8 @@ export interface ArchivedStaffDetails {
 
 export interface Staff {
   id: string;
+  schoolId?: string;
+  campusId?: string;
   empId: string;
   name: string;
   role: StaffRole;
@@ -106,9 +248,10 @@ export interface Staff {
   archivedDetails?: ArchivedStaffDetails;
 }
 
-
 export interface LeaveRequest {
   id: string;
+  schoolId?: string;
+  campusId?: string;
   staffId: string;
   staffName: string;
   empId: string;
@@ -125,6 +268,8 @@ export interface LeaveRequest {
 
 export interface ExamRecord {
   id: string;
+  schoolId?: string;
+  campusId?: string;
   studentId: string;
   studentName: string;
   grade: string;
@@ -147,6 +292,8 @@ export interface ExamRecord {
 
 export interface FeeReceipt {
   receiptNo: string;
+  schoolId?: string;
+  campusId?: string;
   date: string;
   studentId: string;
   studentName: string;
@@ -166,6 +313,8 @@ export interface FeeReceipt {
 
 export interface BusRoute {
   id: string;
+  schoolId?: string;
+  campusId?: string;
   busNo: string;
   driverName: string;
   driverPhone: string;
@@ -185,6 +334,8 @@ export interface BusRoute {
 
 export interface TransferCertificate {
   tcNo: string;
+  schoolId?: string;
+  campusId?: string;
   admissionNo: string;
   studentName: string;
   fatherName: string;
@@ -207,6 +358,8 @@ export interface TransferCertificate {
 
 export interface CRMLead {
   id: string;
+  schoolId?: string;
+  campusId?: string;
   parentName: string;
   studentName: string;
   contactNumber: string;
@@ -220,19 +373,23 @@ export interface CRMLead {
 
 export interface BirthdayItem {
   id: string;
+  schoolId?: string;
+  campusId?: string;
   name: string;
   role: 'Student' | 'Staff';
   grade?: string;
   section?: string;
   department?: string;
   dob: string;
-  dateString: string; // e.g. "23 Oct 2026"
+  dateString: string;
   avatar?: string;
   wished: boolean;
 }
 
 export interface Circular {
   id: string;
+  schoolId?: string;
+  campusId?: string;
   referenceNo: string;
   title: string;
   date: string;
@@ -244,6 +401,8 @@ export interface Circular {
 
 export interface LibraryBook {
   id: string;
+  schoolId?: string;
+  campusId?: string;
   isbn: string;
   title: string;
   author: string;
@@ -255,6 +414,8 @@ export interface LibraryBook {
 
 export interface SchoolAsset {
   id: string;
+  schoolId?: string;
+  campusId?: string;
   assetCode: string;
   name: string;
   category: 'IT Hardware' | 'Laboratory' | 'Sports' | 'Classroom Furniture' | 'Audio/Visual';
@@ -271,16 +432,22 @@ export interface SystemUser {
   fullName: string;
   email: string;
   phone: string;
-  role: 'Super Admin' | 'Principal' | 'Teacher' | 'Accountant' | 'Parent' | 'Transport Staff';
+  role: ErpRole;
+  schoolId: string; // 'all' for Platform/Org scope or specific school id
+  campusId: string; // 'all' for Platform/Org/School scope or specific campus id
+  department?: string;
   status: 'Active' | 'Inactive';
   lastLogin?: string;
   password?: string;
+  passwordResetRequired?: boolean;
 }
 
 export interface SchoolClass {
   id: string;
+  schoolId?: string;
+  campusId?: string;
   gradeName: string;
-  curriculum: 'CBSE' | 'State Board' | 'Matriculation';
+  curriculum: 'CBSE' | 'ICSE' | 'IB' | 'Cambridge IGCSE' | 'State Board' | 'Matriculation';
   sections: string[];
   roomNo: string;
   classTeacher?: string;
@@ -288,6 +455,7 @@ export interface SchoolClass {
 
 export interface SchoolSubject {
   id: string;
+  schoolId?: string;
   code: string;
   name: string;
   type: 'Core' | 'Elective' | 'Co-Scholastic';
@@ -297,6 +465,8 @@ export interface SchoolSubject {
 
 export interface TimetableEntry {
   id: string;
+  schoolId?: string;
+  campusId?: string;
   grade: string;
   section: string;
   day: 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday';
@@ -308,6 +478,7 @@ export interface TimetableEntry {
 
 export interface NewsItem {
   id: string;
+  schoolId?: string;
   date: string;
   title: string;
   category: string;
@@ -316,6 +487,7 @@ export interface NewsItem {
 
 export interface CalendarEvent {
   id: string;
+  schoolId?: string;
   date: string;
   title: string;
   desc: string;
@@ -325,10 +497,25 @@ export interface CalendarEvent {
 
 export interface AuditLog {
   id: string;
+  schoolId?: string;
+  campusId?: string;
   userID: string;
   userName: string;
+  role?: ErpRole | string;
   timestamp: string;
-  actionType: 'REFUND' | 'VOID' | 'STOCK_ADJUSTMENT' | 'LOGIN' | 'SETTINGS_CHANGE' | 'FEE_PAYMENT' | 'TC_PRINT' | 'OTHER';
+  actionType:
+    | 'REFUND'
+    | 'VOID'
+    | 'STOCK_ADJUSTMENT'
+    | 'LOGIN'
+    | 'SETTINGS_CHANGE'
+    | 'FEE_PAYMENT'
+    | 'TC_PRINT'
+    | 'ROLE_PERMISSION'
+    | 'USER_STATUS'
+    | 'PASSWORD_RESET'
+    | 'TENANT_CHANGE'
+    | 'OTHER';
   referenceID: string;
   remarks: string;
   ipAddress?: string;
@@ -344,6 +531,7 @@ export interface CommunicationTemplate {
 
 export interface CommunicationMessage {
   id: string;
+  schoolId?: string;
   timestamp: string;
   senderName: string;
   channel: 'Email' | 'SMS' | 'Internal Notification' | 'WhatsApp';
@@ -353,5 +541,3 @@ export interface CommunicationMessage {
   recipientCount: number;
   status: 'Delivered' | 'Queued' | 'Failed';
 }
-
-
